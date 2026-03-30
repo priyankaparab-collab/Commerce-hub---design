@@ -1,26 +1,49 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Open Sans', system-ui, -apple-system, sans-serif;
+}
+
+/* LineItemCard: override Disclosure layout so actions renders full-width below the trigger */
+.line-item-disclosure.cim-disclosure {
+  background: transparent;
+}
+
+.line-item-disclosure .cim-disclosure-heading-wrapper {
+  flex-wrap: wrap;
+  padding-block: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* The heading (trigger button row) stays full width, actions wraps below */
+.line-item-disclosure .cim-disclosure-heading {
+  flex: 0 0 100%;
+}
+
+.line-item-disclosure .cim-disclosure-button {
+  padding: 16px;
+  min-height: 52px;
+  height: auto;
+}
+
+/* Always-visible content renders full-width below the trigger */
+.line-item-disclosure .cim-disclosure-actions {
+  flex: 0 0 100%;
+  width: 100%;
+  padding: 0 16px 16px 52px;
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+.line-item-disclosure .cim-disclosure-panel {
+  padding-block: 0;
+}
+
+.line-item-disclosure .cim-disclosure-panel-content {
+  padding: 0 16px;
+}
+
+.line-item-disclosure .cim-disclosure-button h3 {
+  font-weight: 600;
 }
