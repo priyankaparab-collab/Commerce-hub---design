@@ -78,7 +78,7 @@ export function OrderDetailsPage({ orderId }: OrderDetailsPageProps) {
   const [isCancelled, setIsCancelled] = useState(false);
 
   const steps = isCancelled
-    ? [...BASE_ORDER_STEPS, CANCELLATION_STEP]
+    ? [...BASE_ORDER_STEPS.slice(0, 3), CANCELLATION_STEP]
     : BASE_ORDER_STEPS;
 
   return (
