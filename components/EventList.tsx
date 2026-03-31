@@ -80,10 +80,7 @@ export function EventList({ events, totalPages = 1, showFilter = true, warningsO
           >
             {FILTER_OPTIONS.map(({ value, label }) => (
               <Radio key={value} value={value}>
-                {label}
-                <span className="ml-1 text-xs text-[color:var(--cim-fg-subtle)]">
-                  ({counts[value as keyof typeof counts]})
-                </span>
+                {`${label} (${counts[value as keyof typeof counts]})`}
               </Radio>
             ))}
           </RadioGroup>
