@@ -79,7 +79,7 @@ export function CancelOrderModal({ orderId, onClose, onConfirm }: CancelOrderMod
         <div className="flex items-center gap-4 justify-between px-6 pt-6 pb-4 border-b border-[var(--cim-border-subtle)] shrink-0">
           <div className="flex flex-col gap-1">
             <p id="cancel-modal-title" className="text-lg font-semibold text-[color:var(--cim-fg-base)] leading-6">
-              Cancel selected items
+              Cancel order
             </p>
             <p className="text-sm text-[color:var(--cim-fg-subtle)] leading-5">
               {orderId} | {ELIGIBLE_ITEMS.length} out of {LINE_ITEMS.length} items eligible for cancellation
