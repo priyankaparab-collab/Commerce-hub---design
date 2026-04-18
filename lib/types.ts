@@ -40,6 +40,15 @@ export interface OrderEvent {
   details?: EventDetails;
 }
 
+export type ShipmentType = "none" | "warning" | "info" | "success";
+
+export interface ShipmentInfo {
+  type: ShipmentType;
+  title: string;
+  subtitle: string;
+  showViewDetails?: boolean;
+}
+
 export interface LineItem {
   id: string;
   lineItemId: string;
@@ -52,6 +61,15 @@ export interface LineItem {
   summaryText: string;
   summaryTimestamp: string;
   events: OrderEvent[]; // chronological descending (most recent first)
+  quantity: number;
+  fulfiller: string;
+  dateLabel: string;
+  dateValue: string;
+  tax: string;
+  itemTotal: string;
+  originalTotal?: string;
+  shipment: ShipmentInfo;
+  recare?: string;
 }
 
 export interface OrderSummary {
@@ -61,4 +79,116 @@ export interface OrderSummary {
   customerPhone: string;
   estimatedDelivery: string;
   lineItems: LineItem[];
+}
+
+// ─── Create Order Types ───────────────────────────────────────────────────────
+
+export interface ProductAttributeOption {
+  id: string;
+  label: string;
+  hexColor?: string; // for color-type attributes
+}
+
+export interface ProductAttribute {
+  id: string;
+  label: string;
+  type: "select" | "color";
+  options: ProductAttributeOption[];
+}
+
+export interface ProductExtraCharge {
+  id: string;
+  label: string;
+  unitPrice: number;
+}
+
+export interface QuantityPricingTier {
+  minQty: number;
+  maxQty: number | null; // null = no upper bound
+  unitPrice: number; // USD per unit
+}
+
+export interface ProductCatalogItem {
+  id: string; // CIM ID e.g. "CIM-9HC1KU"
+  name: string;
+  category: string;
+  imageUrl: string;
+  baseUnitPrice: number;
+  pricingTiers: QuantityPricingTier[];
+  attributes: ProductAttribute[];
+  minOrderQty: number;
+  maxOrderQty: number;
+  stockQuantity?: number;
+  extraCharges?: ProductExtraCharge[];
+  taxRate?: number; // percentage e.g. 5.33
+}
+
+export interface DraftOrderItemAttribute {
+  attributeId: string;
+  selectedOptionId: string;
+}
+
+export interface DraftOrderItem {
+  draftItemId: string; // client-side UUID
+  product: ProductCatalogItem;
+  selectedAttributes: DraftOrderItemAttribute[];
+  quantity: number;
+  artworkType: "upload" | "url" | "none";
+  artworkUrl: string;
+  artworkFileName: string;
+  itemDiscount: number; // percentage 0–100
+  unitPrice: number; // resolved from pricing tier
+  lineTotal: number; // (unitPrice * qty) * (1 - itemDiscount/100)
+}
+
+export interface DraftOrder {
+  customerId: string;
+  customerName: string;
+  customerEmail: string;
+  shopperId: string;
+  items: DraftOrderItem[];
+  subtotal: number;
+  shippingEstimate: number;
+  taxEstimate: number;
+  orderDiscount: number; // percentage 0–100
+  discountCode: string;
+  overridePrice: number | null; // null = not overriding
+  total: number;
+}
+
+export type CheckoutStep =
+  | "shipping-billing"
+  | "shipping-method"
+  | "discount"
+  | "review"
+  | "confirm";
+
+export interface SavedAddress {
+  id: string;
+  label: string; // e.g. "Home", "Office"
+  name: string;
+  lines: string[];
+  phone: string;
+  isDefault: boolean;
+}
+
+export interface ShippingMethod {
+  id: string;
+  name: string; // e.g. "Economy", "Standard", "Express"
+  carrier: string;
+  estimatedDays: number;
+  estimatedDeliveryLabel: string; // e.g. "Fri, 24 Apr 2026"
+  price: number; // USD
+}
+
+export interface CheckoutState {
+  shippingAddressId: string | null;
+  billingAddressId: string | null;
+  billingSameAsShipping: boolean;
+  shippingMethodId: string | null;
+  discountCode: string;
+  discountCodeApplied: boolean;
+  discountPercent: number; // resolved discount %
+  overridePrice: string; // string to allow empty input
+  confirmedOrderId: string | null;
 }

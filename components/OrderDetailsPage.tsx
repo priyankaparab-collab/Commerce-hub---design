@@ -1,13 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { CommerceHubHeader } from "./CommerceHubHeader";
 import { OrderHeader } from "./OrderHeader";
 import { OrderStepper } from "./OrderStepper";
 import { OrderInfoPanels } from "./OrderInfoPanels";
 import { OrderDetailsTabs } from "./OrderDetailsTabs";
-import { allLineItemsDelivered, hasDelayedItems } from "./LineItemsPanel";
-import { Breadcrumbs, BreadcrumbItem } from "@cimpress-ui/react";
+import { LINE_ITEMS, hasDelayedItems } from "./LineItemsPanel";
+import { AppBreadcrumbs } from "./AppBreadcrumbs";
 
 const BASE_ORDER_STEPS = [
   {
@@ -75,30 +74,37 @@ interface OrderDetailsPageProps {
 }
 
 export function OrderDetailsPage({ orderId }: OrderDetailsPageProps) {
-  const [isCancelled, setIsCancelled] = useState(false);
+  const [cancelledItemIds, setCancelledItemIds] = useState<Set<string>>(new Set());
+
+  // Stepper only reflects cancellation when ALL eligible (non-Delivered) items are cancelled
+  const eligibleItems = LINE_ITEMS.filter((i) => i.badgeLabel !== "Delivered");
+  const isCancelled =
+    eligibleItems.length > 0 && eligibleItems.every((i) => cancelledItemIds.has(i.id));
+
+  function handleItemsCancelled(ids: string[]) {
+    setCancelledItemIds((prev) => new Set([...prev, ...ids]));
+  }
 
   const steps = isCancelled
     ? [...BASE_ORDER_STEPS.slice(0, 3), CANCELLATION_STEP]
     : BASE_ORDER_STEPS;
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <CommerceHubHeader />
+    <div className="flex flex-col flex-1">
       <main className="flex-1 px-6 py-6 max-w-[1440px] mx-auto w-full">
         <div className="flex flex-col gap-6">
-          <Breadcrumbs aria-label="Order navigation">
-            <BreadcrumbItem href="/orders">Order</BreadcrumbItem>
-            <BreadcrumbItem href={`/orders/${orderId}`}>{orderId}</BreadcrumbItem>
-          </Breadcrumbs>
+          <AppBreadcrumbs items={[
+            { label: "Order", href: "/orders" },
+            { label: orderId },
+          ]} />
 
           <OrderHeader
             orderId={orderId}
             customerName="Tanishq Bhatia"
             customerEmail="tanishq.bhatia@cimpress.com"
             customerPhone="+9 12123012033"
-            allItemsDelivered={allLineItemsDelivered}
-            isCancelled={isCancelled}
-            onCancelled={() => setIsCancelled(true)}
+            cancelledItemIds={cancelledItemIds}
+            onItemsCancelled={handleItemsCancelled}
           />
 
           <OrderStepper steps={steps} />
@@ -109,7 +115,11 @@ export function OrderDetailsPage({ orderId }: OrderDetailsPageProps) {
             pricing={PRICING_INFO}
           />
 
-          <OrderDetailsTabs defaultTab="events" isCancelled={isCancelled} />
+          <OrderDetailsTabs
+            defaultTab="events"
+            cancelledItemIds={cancelledItemIds}
+            onItemsCancelled={handleItemsCancelled}
+          />
         </div>
       </main>
     </div>

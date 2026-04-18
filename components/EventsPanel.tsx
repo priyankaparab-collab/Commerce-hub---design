@@ -23,12 +23,12 @@ const CANCELLATION_REQUESTED_EVENT: OrderEvent = {
   },
 };
 
-export function EventsPanel({ isCancelled = false }: { isCancelled?: boolean }) {
+export function EventsPanel({ cancelledItemIds }: { cancelledItemIds?: Set<string> }) {
   const [search, setSearch] = useState("");
   const [expandAll, setExpandAll] = useState(false);
   const [warningsOnly, setWarningsOnly] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(
-    new Set(["item-1"]) // first item expanded by default
+    new Set(["1"]) // first item expanded by default
   );
 
   function handleExpandAllToggle(next: boolean) {
@@ -36,7 +36,7 @@ export function EventsPanel({ isCancelled = false }: { isCancelled?: boolean }) 
     if (next) {
       setExpandedIds(new Set(LINE_ITEMS.map((i) => i.id)));
     } else {
-      setExpandedIds(new Set(["item-1"]));
+      setExpandedIds(new Set(["1"]));
     }
   }
 
@@ -112,7 +112,7 @@ export function EventsPanel({ isCancelled = false }: { isCancelled?: boolean }) 
           </div>
         ) : (
           filteredItems.map((item) => {
-            const needsCancellation = isCancelled && item.status !== "cancel_succeeded";
+            const needsCancellation = cancelledItemIds?.has(item.id) ?? false;
             const displayBadgeLabel = needsCancellation ? "Cancellation requested" : item.badgeLabel;
             const displayBadgeTone = needsCancellation ? "warning" : item.badgeTone;
             const displayEvents = needsCancellation

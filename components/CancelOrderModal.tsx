@@ -3,14 +3,19 @@
 import { useState } from "react";
 import { Button, Alert } from "@cimpress-ui/react";
 import { IconCloseBold, IconTrash } from "@cimpress-ui/react/icons";
-import { LINE_ITEMS } from "@/lib/mockData";
 
-// Price and quantity data per lineItemId (from LineItemsPanel mock data)
-const ITEM_DETAILS: Record<string, { quantity: number; price: string; imageUrl: string }> = {
-  "154811849422": { quantity: 5, price: "10.00 USD", imageUrl: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400&h=300&fit=crop" },
-  "154811849423": { quantity: 4, price: "10.00 USD", imageUrl: "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=400&h=300&fit=crop" },
-  "154811849424": { quantity: 2, price: "50.00 USD", imageUrl: "https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?w=400&h=300&fit=crop" },
-};
+export interface CancelModalItem {
+  id: string;
+  name: string;
+  badgeLabel: string;
+  imageUrl: string;
+  quantity: number;
+  itemTotal: string; // e.g. "10.00 USD"
+}
+
+export interface IneligibleModalItem extends CancelModalItem {
+  ineligibleReason: string;
+}
 
 const CANCEL_REASONS = [
   "Customer requested cancellation",
@@ -22,39 +27,36 @@ const CANCEL_REASONS = [
   "Other",
 ];
 
-// Items eligible for cancellation: anything not Delivered and not already Cancelled
-const ELIGIBLE_ITEMS = LINE_ITEMS.filter(
-  (i) => i.badgeLabel !== "Delivered" && i.status !== "cancel_succeeded"
-);
-const INELIGIBLE_ITEMS = LINE_ITEMS.filter(
-  (i) => i.badgeLabel === "Delivered" || i.status === "cancel_succeeded"
-);
-
-// Parse numeric value from e.g. "10.00 USD" or "USD 10.00"
 function parseValue(val: string): number {
   const match = val.replace(/,/g, "").match(/[\d.]+/);
   return match ? parseFloat(match[0]) : 0;
 }
 
-const ELIGIBLE_TOTAL = ELIGIBLE_ITEMS.reduce(
-  (sum, i) => sum + parseValue(ITEM_DETAILS[i.lineItemId]?.price ?? "0"),
-  0
-);
-
 interface CancelOrderModalProps {
   orderId: string;
+  items: CancelModalItem[];               // eligible items to cancel
+  ineligibleItems?: IneligibleModalItem[]; // selected items that can't be cancelled
+  totalItemCount: number;                 // total items in the order (for subtitle)
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: (confirmedIds: string[]) => void;
 }
 
-export function CancelOrderModal({ orderId, onClose, onConfirm }: CancelOrderModalProps) {
+export function CancelOrderModal({
+  orderId,
+  items,
+  ineligibleItems = [],
+  totalItemCount,
+  onClose,
+  onConfirm,
+}: CancelOrderModalProps) {
   const [concession, setConcession] = useState<"yes" | "no" | null>(null);
   const [reason, setReason] = useState("");
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
 
-  const visibleEligible = ELIGIBLE_ITEMS.filter((i) => !removedIds.has(i.id));
-  const someRemoved = removedIds.size > 0;
-  const canSubmit = concession !== null && reason !== "" && visibleEligible.length > 0;
+  const visibleItems = items.filter((i) => !removedIds.has(i.id));
+  const allRemoved = visibleItems.length === 0;
+  const canSubmit = !allRemoved && concession !== null && reason !== "";
+  const total = visibleItems.reduce((sum, i) => sum + parseValue(i.itemTotal), 0);
 
   function removeItem(id: string) {
     setRemovedIds((prev) => new Set([...prev, id]));
@@ -82,7 +84,7 @@ export function CancelOrderModal({ orderId, onClose, onConfirm }: CancelOrderMod
               Cancel order
             </p>
             <p className="text-sm text-[color:var(--cim-fg-subtle)] leading-5">
-              {orderId} | {ELIGIBLE_ITEMS.length} out of {LINE_ITEMS.length} items eligible for cancellation
+              {orderId} | {items.length} out of {totalItemCount} items eligible for cancellation
             </p>
           </div>
           <button
@@ -102,83 +104,83 @@ export function CancelOrderModal({ orderId, onClose, onConfirm }: CancelOrderMod
             Cancelling items does not automatically issue a refund or credit.
           </p>
 
-          {/* Partial cancellation alert */}
-          {someRemoved && (
-            <Alert tone="warning">
-              Removing items means this will not cancel the entire order — only the remaining selected items will be cancelled.
-            </Alert>
-          )}
-
           {/* Eligible items */}
           <div className="flex flex-col gap-3">
             <p className="text-base font-semibold text-[color:var(--cim-fg-base)] leading-6">
-              {visibleEligible.length} items eligible for cancellation
+              {visibleItems.length} item{visibleItems.length !== 1 ? "s" : ""} eligible for cancellation
             </p>
-            <div className="border border-[var(--cim-border-base)] rounded-[var(--cim-radius-6)] overflow-hidden">
-              {visibleEligible.map((item, idx) => (
-                <div
-                  key={item.id}
-                  className={`flex flex-col gap-3 p-4 ${idx < visibleEligible.length - 1 ? "border-b border-[var(--cim-border-base)]" : ""}`}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex flex-col gap-0.5">
+            {allRemoved ? (
+              <Alert tone="warning">
+                No items selected for cancellation. Please go back and select items again.
+              </Alert>
+            ) : (
+              <div className="border border-[var(--cim-border-base)] rounded-[var(--cim-radius-6)] overflow-hidden">
+                {visibleItems.map((item, idx) => (
+                  <div
+                    key={item.id}
+                    className={`flex flex-col gap-3 p-4 ${idx < visibleItems.length - 1 ? "border-b border-[var(--cim-border-base)]" : ""}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-semibold text-[color:var(--cim-fg-base)] leading-5">{item.name}</span>
                         <span className="text-xs text-[color:var(--cim-fg-subtle)] bg-[var(--cim-bg-subtle)] px-2 py-0.5 rounded">{item.badgeLabel}</span>
                       </div>
-                      <span className="text-xs text-[color:var(--cim-fg-subtle)] leading-4">Item id  {item.lineItemId}</span>
+                      <button
+                        aria-label={`Remove ${item.name} from cancellation`}
+                        onClick={() => removeItem(item.id)}
+                        className="flex items-center justify-center w-8 h-8 shrink-0 rounded-[var(--cim-radius-4)] text-[color:var(--cim-fg-subtle)] hover:text-[color:var(--cim-fg-critical)] hover:bg-[var(--cim-bg-hover)] transition-colors"
+                      >
+                        <IconTrash size={16} />
+                      </button>
                     </div>
-                    <button
-                      aria-label={`Remove ${item.name} from cancellation`}
-                      onClick={() => removeItem(item.id)}
-                      className="text-[color:var(--cim-fg-subtle)] hover:text-[color:var(--cim-fg-critical)] shrink-0 mt-0.5"
-                    >
-                      <IconTrash />
-                    </button>
-                  </div>
-                  <div className="flex gap-4 items-start">
-                    <img src={ITEM_DETAILS[item.lineItemId]?.imageUrl ?? item.imageUrl ?? ""} alt={item.name} className="w-16 h-16 object-cover rounded shrink-0" />
-                    <div className="flex gap-8 text-sm text-[color:var(--cim-fg-base)] leading-5">
-                      <span>Original Quantity: {ITEM_DETAILS[item.lineItemId]?.quantity ?? 1}</span>
-                      <span>Item Price: USD {parseValue(ITEM_DETAILS[item.lineItemId]?.price ?? "0").toFixed(2)}</span>
+                    <div className="flex gap-4 items-start">
+                      <img
+                        src={item.imageUrl}
+                        alt={item.name}
+                        className="w-16 h-16 object-cover rounded shrink-0"
+                      />
+                      <div className="flex gap-8 text-sm text-[color:var(--cim-fg-base)] leading-5">
+                        <span>Quantity: {item.quantity}</span>
+                        <span>Item Price: {item.itemTotal}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Ineligible items */}
-          {INELIGIBLE_ITEMS.length > 0 && (
+          {ineligibleItems.length > 0 && (
             <div className="flex flex-col gap-3">
               <p className="text-base font-semibold text-[color:var(--cim-fg-base)] leading-6">
-                {INELIGIBLE_ITEMS.length} items ineligible for cancellation
+                {ineligibleItems.length} item{ineligibleItems.length !== 1 ? "s" : ""} ineligible for cancellation
               </p>
               <div className="border border-[var(--cim-border-base)] rounded-[var(--cim-radius-6)] overflow-hidden">
-                {INELIGIBLE_ITEMS.map((item, idx) => (
+                {ineligibleItems.map((item, idx) => (
                   <div
                     key={item.id}
-                    className={`flex flex-col gap-3 p-4 ${idx < INELIGIBLE_ITEMS.length - 1 ? "border-b border-[var(--cim-border-base)]" : ""}`}
+                    className={`flex flex-col gap-3 p-4 ${idx < ineligibleItems.length - 1 ? "border-b border-[var(--cim-border-base)]" : ""}`}
                   >
                     <div className="flex flex-col gap-0.5">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-semibold text-[color:var(--cim-fg-base)] leading-5">{item.name}</span>
                         <span className="text-xs text-[color:var(--cim-fg-subtle)] bg-[var(--cim-bg-subtle)] px-2 py-0.5 rounded">{item.badgeLabel}</span>
                       </div>
-                      <span className="text-xs text-[color:var(--cim-fg-subtle)] leading-4">Item id  {item.lineItemId}</span>
                     </div>
                     <div className="flex gap-4 items-start">
-                      <img src={ITEM_DETAILS[item.lineItemId]?.imageUrl ?? item.imageUrl ?? ""} alt={item.name} className="w-16 h-16 object-cover rounded shrink-0" />
+                      <img
+                        src={item.imageUrl}
+                        alt={item.name}
+                        className="w-16 h-16 object-cover rounded shrink-0"
+                      />
                       <div className="flex gap-8 text-sm text-[color:var(--cim-fg-base)] leading-5">
-                        <span>Original Quantity: {ITEM_DETAILS[item.lineItemId]?.quantity ?? 1}</span>
-                        <span>Item Price: USD {parseValue(ITEM_DETAILS[item.lineItemId]?.price ?? "0").toFixed(2)}</span>
+                        <span>Quantity: {item.quantity}</span>
+                        <span>Item Price: {item.itemTotal}</span>
                       </div>
                     </div>
-                    <Alert tone="warning">
-                      {item.status === "cancel_succeeded"
-                        ? "This item cannot be cancelled because it has already been cancelled"
-                        : "This item cannot be cancelled because it has already been delivered"}
-                    </Alert>
+                    {/* Ineligibility reason */}
+                    <Alert tone="warning">{item.ineligibleReason}</Alert>
                   </div>
                 ))}
               </div>
@@ -251,7 +253,7 @@ export function CancelOrderModal({ orderId, onClose, onConfirm }: CancelOrderMod
         <div className="flex items-center justify-between px-6 py-4 border-t border-[var(--cim-border-subtle)] shrink-0">
           <p className="text-base font-semibold text-[color:var(--cim-fg-base)] leading-6">
             Total Cancellation Value{" "}
-            <span className="ml-4">USD {ELIGIBLE_TOTAL.toFixed(2)}</span>
+            <span className="ml-4 font-normal">USD {total.toFixed(2)}</span>
           </p>
           <div className="flex items-center gap-4">
             <Button variant="secondary" onPress={onClose}>Go back</Button>
@@ -259,9 +261,9 @@ export function CancelOrderModal({ orderId, onClose, onConfirm }: CancelOrderMod
               variant="primary"
               tone="critical"
               isDisabled={!canSubmit}
-              onPress={() => { if (canSubmit) onConfirm(); }}
+              onPress={() => { if (canSubmit) onConfirm(visibleItems.map((i) => i.id)); }}
             >
-              Cancel item
+              Cancel order
             </Button>
           </div>
         </div>

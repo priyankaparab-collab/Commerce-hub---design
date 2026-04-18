@@ -7,12 +7,12 @@ export type ToastVariant = "success" | "failure";
 
 interface ToastProps {
   variant: ToastVariant;
-  orderId?: string;
+  message?: string;
   onDismiss: () => void;
   autoDismissMs?: number;
 }
 
-export function Toast({ variant, orderId, onDismiss, autoDismissMs = 5000 }: ToastProps) {
+export function Toast({ variant, message, onDismiss, autoDismissMs = 10000 }: ToastProps) {
   useEffect(() => {
     const timer = setTimeout(onDismiss, autoDismissMs);
     return () => clearTimeout(timer);
@@ -20,7 +20,7 @@ export function Toast({ variant, orderId, onDismiss, autoDismissMs = 5000 }: Toa
 
   return (
     <div
-      className="fixed bottom-6 right-6 z-[60] flex items-center justify-between gap-3 bg-white border border-[var(--cim-border-base)] rounded-[var(--cim-radius-8)] pl-4 pr-3 py-3 min-w-[360px] max-w-[480px]"
+      className="fixed top-[72px] left-1/2 -translate-x-1/2 z-[300] flex items-center justify-between gap-3 bg-white border border-[var(--cim-border-base)] rounded-[var(--cim-radius-8)] pl-4 pr-3 py-3 min-w-[360px] max-w-[480px]"
       style={{
         boxShadow:
           "0px 1px 3px rgba(0,0,0,0.08), 0px 3px 8px rgba(0,0,0,0.06), 0px 4px 12px rgba(0,0,0,0.05), 0px 6px 16px rgba(0,0,0,0.04)",
@@ -39,9 +39,9 @@ export function Toast({ variant, orderId, onDismiss, autoDismissMs = 5000 }: Toa
           </span>
         )}
         <p className="text-sm text-[color:var(--cim-fg-base)] leading-5">
-          {variant === "success"
-            ? `Cancellation request created for Order number: ${orderId}`
-            : "Request failure due to API failure. Please try again."}
+          {message ?? (variant === "success"
+            ? "Cancellation request created"
+            : "Request failed due to an API error. Please try again.")}
         </p>
       </div>
       <button

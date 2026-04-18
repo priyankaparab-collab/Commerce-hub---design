@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import "./compiled.css";
 import "./globals.css";
 import "@cimpress-ui/react/styles.css";
 import { ClipboardPolyfill } from "@/components/ClipboardPolyfill";
+import { AppShell } from "@/components/AppShell";
 
 export const metadata: Metadata = {
   title: "Commerce Hub",
@@ -23,9 +25,9 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-full" style={{ backgroundColor: 'white' }}>
+      <body className="h-full" style={{ backgroundColor: 'white' }}>
         <ClipboardPolyfill />
-        {children}
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );
