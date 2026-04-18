@@ -17,19 +17,20 @@ import {
 
 export function SideNav() {
   const pathname = usePathname();
+  const bp = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
   return (
     <UNSTABLE_SideNav variant="fixed">
       <UNSTABLE_SideNavList>
         <UNSTABLE_SideNavListItem
-          href="/"
+          href={`${bp}/`}
           icon={<IconSearch />}
           isActive={pathname === "/" || pathname === ""}
         >
           Search
         </UNSTABLE_SideNavListItem>
         <UNSTABLE_SideNavListItem
-          href="/orders/VP_8WZ3DJ32"
+          href={`${bp}/orders/VP_8WZ3DJ32`}
           icon={<IconDeliveryBox />}
           isActive={pathname.startsWith("/orders")}
         >
@@ -39,7 +40,7 @@ export function SideNav() {
           Finances
         </UNSTABLE_SideNavListItem>
         <UNSTABLE_SideNavListItem
-          href="/customers"
+          href={`${bp}/customers`}
           icon={<IconUser />}
           isActive={pathname.startsWith("/customers")}
         >

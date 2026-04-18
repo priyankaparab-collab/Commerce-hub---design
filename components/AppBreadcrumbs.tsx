@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { IconChevronRight } from "@cimpress-ui/react/icons";
 
 interface BreadcrumbItem {
@@ -18,7 +19,7 @@ export function AppBreadcrumbs({ items }: { items: BreadcrumbItem[] }) {
             </span>
           )}
           {item.href ? (
-            <a
+            <Link
               href={item.href}
               style={{
                 fontSize: "1rem",
@@ -28,7 +29,7 @@ export function AppBreadcrumbs({ items }: { items: BreadcrumbItem[] }) {
               }}
             >
               {item.label}
-            </a>
+            </Link>
           ) : (
             <span
               style={{
