@@ -199,7 +199,7 @@ export function OrderSummaryPanel({
       <div style={{ height: "1px", background: "var(--cim-border-subtle, #eaebeb)" }} />
 
       {/* Add code — Disclosure */}
-      <Disclosure title="Add code">
+      <Disclosure title="Add code" variant="subtle">
         <div style={{ display: "flex", flexDirection: "column", gap: "8px", paddingTop: "4px" }}>
           <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
             <div style={{ flex: 1 }}>
@@ -238,7 +238,7 @@ export function OrderSummaryPanel({
       </Disclosure>
 
       {/* Override price — Disclosure */}
-      <Disclosure title="Override price">
+      <Disclosure title="Override price" variant="subtle">
         <div style={{ display: "flex", flexDirection: "column", gap: "8px", paddingTop: "4px" }}>
           <NumberField
             label="Override total price (USD)"

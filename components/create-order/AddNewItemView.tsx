@@ -11,6 +11,7 @@ import type { Customer } from "@/lib/createOrderMockData";
 
 interface AddNewItemViewProps {
   customer: Customer;
+  editingItem?: DraftOrderItem | null;
   onAddComplete: (item: DraftOrderItem) => void;
   onCancel: () => void;
   pendingItemTotal: number;
@@ -61,13 +62,14 @@ const actionBtnStyle: React.CSSProperties = {
   fontWeight: 500,
 };
 
-export function AddNewItemView({ customer, onAddComplete, onCancel }: AddNewItemViewProps) {
-  const [query, setQuery] = useState("");
+export function AddNewItemView({ customer, editingItem, onAddComplete, onCancel }: AddNewItemViewProps) {
+  const isEditing = !!editingItem;
+  const [query, setQuery] = useState(editingItem?.product.name ?? "");
   const [dropdownResults, setDropdownResults] = useState<ProductCatalogItem[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<ProductCatalogItem | null>(null);
-  const [itemTotal, setItemTotal] = useState(0);
-  const [isValid, setIsValid] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<ProductCatalogItem | null>(editingItem?.product ?? null);
+  const [itemTotal, setItemTotal] = useState(editingItem?.lineTotal ?? 0);
+  const [isValid, setIsValid] = useState(isEditing);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputWrapperRef = useRef<HTMLDivElement>(null);
@@ -125,7 +127,7 @@ export function AddNewItemView({ customer, onAddComplete, onCancel }: AddNewItem
           { label: "Customer management", href: "/customers" },
           { label: customer.name, href: "/customers/" + customer.id },
           { label: "Create order", href: "/customers/" + customer.id + "/create-order" },
-          { label: "Add new item" },
+          { label: isEditing ? "Edit item" : "Add new item" },
         ]} />
 
         {/* Title row */}
@@ -138,7 +140,7 @@ export function AddNewItemView({ customer, onAddComplete, onCancel }: AddNewItem
             >
               <IconArrowLeft />
             </button>
-            <Text as="h1" variant="title-4">Add new item</Text>
+            <Text as="h1" variant="title-4">{isEditing ? "Edit item" : "Add new item"}</Text>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <button style={actionBtnStyle} aria-label="Add notes">
@@ -243,6 +245,7 @@ export function AddNewItemView({ customer, onAddComplete, onCancel }: AddNewItem
             <ItemConfigurationCard
               ref={cardRef}
               product={selectedProduct}
+              initialValues={editingItem?.product.id === selectedProduct.id ? editingItem : undefined}
               onAddToOrder={onAddComplete}
               onLineTotalChange={setItemTotal}
               onValidityChange={setIsValid}
@@ -289,7 +292,7 @@ export function AddNewItemView({ customer, onAddComplete, onCancel }: AddNewItem
               isDisabled={!selectedProduct || !isValid}
               onPress={() => cardRef.current?.submit()}
             >
-              Add item to cart
+              {isEditing ? "Save changes" : "Add item to cart"}
             </Button>
           </div>
         </div>

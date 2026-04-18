@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Checkbox, Button, Disclosure } from "@cimpress-ui/react";
+import { Checkbox, Button, Disclosure, AlertDialog, AlertDialogBody, AlertDialogActions } from "@cimpress-ui/react";
 import {
   IconTrash,
   IconPencil,
@@ -11,11 +11,13 @@ import {
   IconChevronDown,
 } from "@cimpress-ui/react/icons";
 import type { DraftOrderItem } from "@/lib/types";
+import { Toast } from "@/components/Toast";
 
 interface OrderItemsListProps {
   items: DraftOrderItem[];
   onEdit: (draftItemId: string) => void;
   onRemove: (draftItemId: string) => void;
+  onDuplicate: (draftItemId: string) => void;
 }
 
 const iconBtnStyle: React.CSSProperties = {
@@ -31,10 +33,14 @@ const iconBtnStyle: React.CSSProperties = {
   color: "var(--cim-fg-subtle, #5f6469)",
 };
 
-export function OrderItemsList({ items, onEdit, onRemove }: OrderItemsListProps) {
+export function OrderItemsList({ items, onEdit, onRemove, onDuplicate }: OrderItemsListProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [removingItemId, setRemovingItemId] = useState<string | null>(null);
+  const [showDuplicateToast, setShowDuplicateToast] = useState(false);
 
   if (items.length === 0) return null;
+
+  const removingItem = removingItemId ? items.find((i) => i.draftItemId === removingItemId) : null;
 
   const allSelected = selectedIds.size === items.length && items.length > 0;
   const someSelected = selectedIds.size > 0 && !allSelected;
@@ -63,6 +69,43 @@ export function OrderItemsList({ items, onEdit, onRemove }: OrderItemsListProps)
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
+      {showDuplicateToast && (
+        <Toast
+          variant="success"
+          message="Item duplicated successfully"
+          onDismiss={() => setShowDuplicateToast(false)}
+          autoDismissMs={3000}
+        />
+      )}
+
+      <AlertDialog
+        title="Remove item"
+        tone="critical"
+        isOpen={removingItemId !== null}
+        onOpenChange={(open) => { if (!open) setRemovingItemId(null); }}
+      >
+        <AlertDialogBody>
+          {removingItem
+            ? `Are you sure you want to remove "${removingItem.product.name}" from the order?`
+            : "Are you sure you want to remove this item from the order?"}
+        </AlertDialogBody>
+        <AlertDialogActions>
+          <Button variant="tertiary" onPress={() => setRemovingItemId(null)}>Cancel</Button>
+          <Button
+            variant="primary"
+            tone="critical"
+            onPress={() => {
+              if (removingItemId) {
+                onRemove(removingItemId);
+                setSelectedIds((prev) => { const n = new Set(prev); n.delete(removingItemId); return n; });
+              }
+              setRemovingItemId(null);
+            }}
+          >
+            Remove
+          </Button>
+        </AlertDialogActions>
+      </AlertDialog>
       {/* Selection bar */}
       <div style={{
         background: "var(--cim-bg-subtle, #f8f9fa)",
@@ -127,7 +170,12 @@ export function OrderItemsList({ items, onEdit, onRemove }: OrderItemsListProps)
                     </span>
                   </div>
                   <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
-                    <button style={iconBtnStyle} title="Duplicate" aria-label="Duplicate item">
+                    <button
+                      style={iconBtnStyle}
+                      title="Duplicate"
+                      aria-label="Duplicate item"
+                      onClick={() => { onDuplicate(item.draftItemId); setShowDuplicateToast(true); }}
+                    >
                       <IconDuplicate />
                     </button>
                     <button
@@ -142,7 +190,7 @@ export function OrderItemsList({ items, onEdit, onRemove }: OrderItemsListProps)
                       style={{ ...iconBtnStyle, color: "var(--cim-fg-critical, #d10023)" }}
                       title="Remove"
                       aria-label="Remove item"
-                      onClick={() => onRemove(item.draftItemId)}
+                      onClick={() => setRemovingItemId(item.draftItemId)}
                     >
                       <IconTrash />
                     </button>
@@ -252,7 +300,7 @@ export function OrderItemsList({ items, onEdit, onRemove }: OrderItemsListProps)
 
               {/* Selected options disclosure */}
               <div style={{ borderTop: "1px solid var(--cim-border-subtle, #eaebeb)" }}>
-                <Disclosure title="Selected options and details">
+                <Disclosure title="Selected options and details" variant="subtle">
                   <div style={{ padding: "12px 16px 16px", display: "flex", flexDirection: "column", gap: "6px" }}>
                     {attributes.length > 0 ? (
                       attributes.map((attr, i) => (

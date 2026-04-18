@@ -404,39 +404,13 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
                 borderTop: "1px solid var(--cim-border-subtle, #eaebeb)",
               }}>
                 {upsellApplied ? (
-                  <button
-                    onClick={handleRemoveUpsell}
-                    style={{
-                      padding: "5px 16px",
-                      border: "1px solid var(--cim-fg-critical, #d10023)",
-                      borderRadius: "20px",
-                      background: "white",
-                      color: "var(--cim-fg-critical, #d10023)",
-                      fontSize: "0.875rem",
-                      fontWeight: 600,
-                      cursor: "pointer",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
+                  <Button variant="secondary" tone="critical" size="small" onPress={handleRemoveUpsell}>
                     Remove upsell
-                  </button>
+                  </Button>
                 ) : (
-                  <button
-                    onClick={handleAddUpsell}
-                    style={{
-                      padding: "5px 16px",
-                      border: "1px solid var(--cim-fg-accent, #0091b8)",
-                      borderRadius: "20px",
-                      background: "white",
-                      color: "var(--cim-fg-accent, #007798)",
-                      fontSize: "0.875rem",
-                      fontWeight: 600,
-                      cursor: "pointer",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
+                  <Button variant="secondary" size="small" onPress={handleAddUpsell}>
                     Add upsell
-                  </button>
+                  </Button>
                 )}
                 <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)" }}>
                   {upsellApplied

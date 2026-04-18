@@ -9,7 +9,7 @@ import type { DraftOrder, DraftOrderItem } from "@/lib/types";
 import type { Customer } from "@/lib/createOrderMockData";
 import { ProductSearchPanel } from "./ProductSearchPanel";
 import { OrderSummaryPanel } from "./OrderSummaryPanel";
-import { CheckoutWizardModal } from "./CheckoutWizardModal";
+import { ShippingDrawer } from "./ShippingDrawer";
 import { AddNewItemView } from "./AddNewItemView";
 
 interface CreateOrderPageProps {
@@ -70,12 +70,22 @@ export function CreateOrderPage({ customer }: CreateOrderPageProps) {
 
   function handleEditItem(draftItemId: string) {
     const item = items.find((i) => i.draftItemId === draftItemId);
-    if (item) setEditingItem(item);
+    if (item) {
+      setEditingItem(item);
+      setView("add-item");
+    }
   }
 
   function handleRemoveItem(draftItemId: string) {
     setItems((prev) => prev.filter((i) => i.draftItemId !== draftItemId));
     if (editingItem?.draftItemId === draftItemId) setEditingItem(null);
+  }
+
+  function handleDuplicateItem(draftItemId: string) {
+    const item = items.find((i) => i.draftItemId === draftItemId);
+    if (item) {
+      setItems((prev) => [...prev, { ...item, draftItemId: `${draftItemId}-copy-${Date.now()}` }]);
+    }
   }
 
   function handleDiscountApplied(code: string, percent: number) {
@@ -105,8 +115,9 @@ export function CreateOrderPage({ customer }: CreateOrderPageProps) {
     return (
       <AddNewItemView
         customer={customer}
+        editingItem={editingItem}
         onAddComplete={handleAddToOrder}
-        onCancel={() => setView("cart")}
+        onCancel={() => { setView("cart"); setEditingItem(null); }}
         pendingItemTotal={0}
       />
     );
@@ -164,6 +175,7 @@ export function CreateOrderPage({ customer }: CreateOrderPageProps) {
                 onAddToOrder={handleAddToOrder}
                 onEditItem={handleEditItem}
                 onRemoveItem={handleRemoveItem}
+                onDuplicateItem={handleDuplicateItem}
                 editingItem={editingItem}
               />
             )}
@@ -179,11 +191,11 @@ export function CreateOrderPage({ customer }: CreateOrderPageProps) {
         </div>
       </div>
 
-      <CheckoutWizardModal
+      <ShippingDrawer
         isOpen={isCheckoutOpen}
-        draftOrder={draftOrder}
+        items={items}
         onClose={() => setIsCheckoutOpen(false)}
-        onOrderConfirmed={handleOrderConfirmed}
+        onReviewToCheckout={() => setIsCheckoutOpen(false)}
       />
     </div>
   );

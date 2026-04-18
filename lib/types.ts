@@ -165,8 +165,9 @@ export type CheckoutStep =
 
 export interface SavedAddress {
   id: string;
-  label: string; // e.g. "Home", "Office"
+  label: string;
   name: string;
+  company?: string;
   lines: string[];
   phone: string;
   isDefault: boolean;
@@ -174,11 +175,12 @@ export interface SavedAddress {
 
 export interface ShippingMethod {
   id: string;
-  name: string; // e.g. "Economy", "Standard", "Express"
+  name: string;
   carrier: string;
   estimatedDays: number;
-  estimatedDeliveryLabel: string; // e.g. "Fri, 24 Apr 2026"
-  price: number; // USD
+  estimatedDeliveryLabel: string;
+  price: number; // USD, 0 = free
+  originalPrice?: number; // shown as strikethrough when price is 0
 }
 
 export interface CheckoutState {

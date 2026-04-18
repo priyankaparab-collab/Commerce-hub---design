@@ -533,10 +533,11 @@ export const MOCK_PRODUCT_CATALOG: ProductCatalogItem[] = [
 export const MOCK_SAVED_ADDRESSES: SavedAddress[] = [
   {
     id: "addr-001",
-    label: "Home",
-    name: "Tanishq Bhatia",
-    lines: ["70 Washington Square South", "New York, NY 10012", "United States"],
-    phone: "+9 12123012033",
+    label: "Default",
+    name: "Mayank Sen",
+    company: "Cimpress India Pvt. Ltd.",
+    lines: ["70 Washington Square,", "South, New York, NY", "10012, United States"],
+    phone: "1-587-530-2271",
     isDefault: true,
   },
   {
@@ -547,42 +548,43 @@ export const MOCK_SAVED_ADDRESSES: SavedAddress[] = [
     phone: "+9 12123012034",
     isDefault: false,
   },
-  {
-    id: "addr-003",
-    label: "Warehouse",
-    name: "Commerce Hub Logistics",
-    lines: ["1400 Industrial Blvd", "Edison, NJ 08817", "United States"],
-    phone: "+1 7325550100",
-    isDefault: false,
-  },
 ];
 
 // ─── Shipping Methods ─────────────────────────────────────────────────────────
 
 export const MOCK_SHIPPING_METHODS: ShippingMethod[] = [
   {
-    id: "economy",
-    name: "Economy",
+    id: "rush",
+    name: "Rush",
     carrier: "FedEx",
-    estimatedDays: 7,
-    estimatedDeliveryLabel: "Fri, 24 Apr 2026",
-    price: 4.56,
+    estimatedDays: 1,
+    estimatedDeliveryLabel: "Wed, 26 Nov 2025",
+    price: 40.00,
+  },
+  {
+    id: "express",
+    name: "Express",
+    carrier: "FedEx",
+    estimatedDays: 3,
+    estimatedDeliveryLabel: "Mon, 1 Dec 2025",
+    price: 20.00,
   },
   {
     id: "standard",
     name: "Standard",
     carrier: "UPS",
     estimatedDays: 5,
-    estimatedDeliveryLabel: "Wed, 22 Apr 2026",
-    price: 8.99,
+    estimatedDeliveryLabel: "Wed, 3 Dec 2025",
+    price: 10.00,
   },
   {
-    id: "express",
-    name: "Express",
+    id: "economy",
+    name: "Economy",
     carrier: "FedEx",
-    estimatedDays: 2,
-    estimatedDeliveryLabel: "Mon, 17 Apr 2026",
-    price: 19.99,
+    estimatedDays: 12,
+    estimatedDeliveryLabel: "Fri, 12 Dec 2025",
+    price: 0,
+    originalPrice: 24.99,
   },
 ];
 
