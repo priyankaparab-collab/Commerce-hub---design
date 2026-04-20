@@ -487,11 +487,13 @@ export const MOCK_PRODUCT_CATALOG: ProductCatalogItem[] = [
     name: "Standard Ball Pens",
     category: "Writing instruments",
     imageUrl: "https://images.unsplash.com/photo-1583485088034-697b5bc54ccd?w=64&h=64&fit=crop",
-    baseUnitPrice: 1.85,
+    baseUnitPrice: 1.53,
     pricingTiers: [
-      { minQty: 50, maxQty: 99, unitPrice: 2.10 },
-      { minQty: 100, maxQty: 249, unitPrice: 1.85 },
-      { minQty: 250, maxQty: 350, unitPrice: 1.65 },
+      { minQty: 50, maxQty: 99, unitPrice: 1.59 },
+      { minQty: 100, maxQty: 149, unitPrice: 1.53 },
+      { minQty: 150, maxQty: 249, unitPrice: 1.46 },
+      { minQty: 250, maxQty: 299, unitPrice: 1.38 },
+      { minQty: 300, maxQty: 350, unitPrice: 1.33 },
     ],
     attributes: [
       {

@@ -132,9 +132,12 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
     const [artworkOption, setArtworkOption] = useState<"new" | "customise">("new");
     const [artworkFileName, setArtworkFileName] = useState<string>(initialValues?.artworkFileName ?? "");
     const [selectedChargeId, setSelectedChargeId] = useState<string | null>(null);
-    const [priceOverrideType, setPriceOverrideType] = useState<"new" | "percentage">("new");
+    const [priceOverrideType, setPriceOverrideType] = useState<"new" | "percentage" | null>(null);
     const [overrideInput, setOverrideInput] = useState("0.00");
     const [appliedOverridePrice, setAppliedOverridePrice] = useState<number | null>(null);
+    const [overrideReason, setOverrideReason] = useState<string | null>(null);
+    const [tierPage, setTierPage] = useState(0);
+    const TIERS_PER_PAGE = 5;
 
     const unitPrice = resolvePricingTier(product.pricingTiers, quantity);
     const basePrice = parseFloat((unitPrice * quantity).toFixed(2));
@@ -297,6 +300,124 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
               <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-subtle, #5f6469)", whiteSpace: "nowrap", flexShrink: 0 }}>{product.id}</span>
             </div>
           </div>
+
+          {/* Pricing table */}
+          {product.pricingTiers.length > 1 && (() => {
+            const tiers = product.pricingTiers;
+            const totalPages = Math.ceil(tiers.length / TIERS_PER_PAGE);
+            const safePage = Math.min(tierPage, totalPages - 1);
+            const pageTiers = tiers.slice(safePage * TIERS_PER_PAGE, (safePage + 1) * TIERS_PER_PAGE);
+            const activeTierIndex = [...tiers].reverse().findIndex((t) => quantity >= t.minQty);
+            const activeIndex = activeTierIndex === -1 ? 0 : tiers.length - 1 - activeTierIndex;
+
+            const labelStyle: React.CSSProperties = {
+              fontSize: "0.8125rem",
+              fontWeight: 600,
+              color: "var(--cim-fg-base, #15191d)",
+              padding: "10px 12px",
+              background: "var(--cim-bg-subtle, #f8f9fa)",
+              borderRight: "1px solid var(--cim-border-base, #dadcdd)",
+              whiteSpace: "nowrap",
+            };
+            const cellStyle = (isActive: boolean): React.CSSProperties => ({
+              fontSize: "0.8125rem",
+              color: "var(--cim-fg-base, #15191d)",
+              padding: "10px 12px",
+              textAlign: "center",
+              background: isActive ? "var(--cim-bg-info-subtle, #e8f4f8)" : "white",
+              borderRight: "1px solid var(--cim-border-base, #dadcdd)",
+              cursor: "pointer",
+            });
+            const rowBorder = "1px solid var(--cim-border-base, #dadcdd)";
+
+            return (
+              <div style={{ border: "1px solid var(--cim-border-base, #dadcdd)", borderRadius: "6px", overflow: "hidden" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <tbody>
+                    <tr style={{ borderBottom: rowBorder }}>
+                      <td style={labelStyle}>Quantity</td>
+                      {pageTiers.map((tier, i) => {
+                        const gi = safePage * TIERS_PER_PAGE + i;
+                        return (
+                          <td key={gi} style={cellStyle(gi === activeIndex)} onClick={() => handleQuantityChange(tier.minQty)}>
+                            <strong>{tier.minQty}</strong>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                    <tr style={{ borderBottom: rowBorder }}>
+                      <td style={labelStyle}>Unit Price</td>
+                      {pageTiers.map((tier, i) => {
+                        const gi = safePage * TIERS_PER_PAGE + i;
+                        return (
+                          <td key={gi} style={cellStyle(gi === activeIndex)} onClick={() => handleQuantityChange(tier.minQty)}>
+                            {tier.unitPrice.toFixed(2)} USD
+                          </td>
+                        );
+                      })}
+                    </tr>
+                    <tr style={{ borderBottom: rowBorder }}>
+                      <td style={labelStyle}>Subtotal</td>
+                      {pageTiers.map((tier, i) => {
+                        const gi = safePage * TIERS_PER_PAGE + i;
+                        return (
+                          <td key={gi} style={{ ...cellStyle(gi === activeIndex), fontWeight: 600 }} onClick={() => handleQuantityChange(tier.minQty)}>
+                            {(tier.minQty * tier.unitPrice).toFixed(2)} USD
+                          </td>
+                        );
+                      })}
+                    </tr>
+                    <tr>
+                      <td style={labelStyle}>Upsell Offer</td>
+                      {pageTiers.map((tier, i) => {
+                        const gi = safePage * TIERS_PER_PAGE + i;
+                        const nextTier = tiers[gi + 1];
+                        return (
+                          <td key={gi} style={{ ...cellStyle(gi === activeIndex), color: "var(--cim-fg-subtle, #5f6469)" }} onClick={() => handleQuantityChange(tier.minQty)}>
+                            {nextTier ? (
+                              <>{nextTier.minQty - tier.minQty}{" "}<span style={{ fontSize: "0.75rem" }}>@ {nextTier.unitPrice.toFixed(2)}/each</span></>
+                            ) : "—"}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  </tbody>
+                </table>
+                {totalPages > 1 && (
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "8px 12px",
+                    borderTop: "1px solid var(--cim-border-base, #dadcdd)",
+                    background: "var(--cim-bg-subtle, #f8f9fa)",
+                  }}>
+                    <span style={{ fontSize: "0.75rem", color: "var(--cim-fg-subtle, #5f6469)" }}>
+                      Page {safePage + 1} of {totalPages}
+                    </span>
+                    <div style={{ display: "flex", gap: "4px" }}>
+                      <Button
+                        variant="secondary"
+                        size="small"
+                        isDisabled={safePage === 0}
+                        onPress={() => setTierPage(safePage - 1)}
+                      >
+                        ← Prev
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="small"
+                        isDisabled={safePage === totalPages - 1}
+                        onPress={() => setTierPage(safePage + 1)}
+                      >
+                        Next →
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Attributes section */}
           {product.attributes.length > 0 && (
@@ -574,60 +695,115 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
                 <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)" }}>Percentage based pricing</span>
               </label>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                border: "1px solid var(--cim-border-base, #dadcdd)",
-                borderRadius: "4px",
-                overflow: "hidden",
-                width: "180px",
-              }}>
-                <span style={{
-                  padding: "7px 8px",
-                  background: "var(--cim-bg-subtle, #f8f9fa)",
-                  fontSize: "0.875rem",
-                  color: "var(--cim-fg-subtle, #5f6469)",
-                  borderRight: "1px solid var(--cim-border-base, #dadcdd)",
-                  flexShrink: 0,
-                }}>
-                  {priceOverrideType === "percentage" ? "%" : "USD"}
-                </span>
-                <input
-                  type="number"
-                  value={overrideInput}
-                  min={0}
-                  step={0.01}
-                  onChange={(e) => setOverrideInput(e.target.value)}
-                  style={{ border: "none", outline: "none", padding: "7px 8px", flex: 1, fontSize: "0.875rem", background: "white" }}
-                />
-              </div>
-              <Button
-                variant="secondary"
-                size="small"
-                onPress={() => {
-                  const val = parseFloat(overrideInput);
-                  if (priceOverrideType === "new") {
-                    setAppliedOverridePrice(isNaN(val) || val <= 0 ? null : val);
-                  } else {
-                    const discounted = parseFloat((subtotal * (1 - val / 100)).toFixed(2));
-                    setAppliedOverridePrice(isNaN(val) || val <= 0 ? null : discounted);
-                  }
-                }}
-              >
-                Save changes to price
-              </Button>
-            </div>
+            {(() => {
+              const val = parseFloat(overrideInput);
+              const hasInput = overrideInput !== "" && !isNaN(val) && val > 0;
+              const isAboveOriginal = priceOverrideType === "new"
+                ? hasInput && val >= subtotal
+                : hasInput && val <= 0;
+              const inputError = isAboveOriginal
+                ? priceOverrideType === "new"
+                  ? `Must be less than current price (${subtotal.toFixed(2)} USD)`
+                  : "Discount percentage must be greater than 0"
+                : null;
+              const canSave = !priceOverrideType || !hasInput || isAboveOriginal || !overrideReason;
+              return (
+                <div style={{ opacity: priceOverrideType === null ? 0.4 : 1, display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <div style={{
+                      display: "flex",
+                      alignItems: "center",
+                      border: `1px solid ${inputError ? "var(--cim-border-critical, #d10023)" : "var(--cim-border-base, #dadcdd)"}`,
+                      borderRadius: "4px",
+                      overflow: "hidden",
+                      width: "180px",
+                    }}>
+                      <span style={{
+                        padding: "7px 8px",
+                        background: "var(--cim-bg-subtle, #f8f9fa)",
+                        fontSize: "0.875rem",
+                        color: "var(--cim-fg-subtle, #5f6469)",
+                        borderRight: `1px solid ${inputError ? "var(--cim-border-critical, #d10023)" : "var(--cim-border-base, #dadcdd)"}`,
+                        flexShrink: 0,
+                      }}>
+                        {priceOverrideType === "percentage" ? "%" : "USD"}
+                      </span>
+                      <input
+                        type="number"
+                        value={overrideInput}
+                        min={0}
+                        max={priceOverrideType === "new" ? subtotal - 0.01 : 99.99}
+                        step={0.01}
+                        disabled={priceOverrideType === null}
+                        onChange={(e) => setOverrideInput(e.target.value)}
+                        style={{ border: "none", outline: "none", padding: "7px 8px", flex: 1, fontSize: "0.875rem", background: "white", cursor: priceOverrideType === null ? "not-allowed" : "auto" }}
+                      />
+                    </div>
+                    {inputError && (
+                      <span style={{ fontSize: "0.75rem", color: "var(--cim-fg-critical, #d10023)" }}>{inputError}</span>
+                    )}
+                  </div>
+                  <div style={{ maxWidth: "320px" }}>
+                    <Select
+                      label="Reason for price override"
+                      selectedKey={overrideReason}
+                      onSelectionChange={(val) => setOverrideReason(String(val))}
+                      placeholder="Select a reason"
+                      isRequired
+                      isDisabled={priceOverrideType === null}
+                    >
+                      <SelectItem id="customer-loyalty">Customer loyalty discount</SelectItem>
+                      <SelectItem id="competitor-match">Competitor price match</SelectItem>
+                      <SelectItem id="manager-approval">Manager approval</SelectItem>
+                      <SelectItem id="promotional-offer">Promotional offer</SelectItem>
+                      <SelectItem id="damaged-goods">Damaged goods</SelectItem>
+                      <SelectItem id="other">Other</SelectItem>
+                    </Select>
+                  </div>
+                  {appliedOverridePrice === null && (
+                    <Button
+                      variant="secondary"
+                      size="small"
+                      isDisabled={canSave}
+                      onPress={() => {
+                        if (priceOverrideType === "new") {
+                          setAppliedOverridePrice(val);
+                        } else {
+                          setAppliedOverridePrice(parseFloat((subtotal * (1 - val / 100)).toFixed(2)));
+                        }
+                      }}
+                    >
+                      Save changes to price
+                    </Button>
+                  )}
+                </div>
+              );
+            })()}
             {appliedOverridePrice !== null && (
-              <span style={{ fontSize: "0.8125rem", color: "var(--cim-fg-success, #007e3f)", fontWeight: 500 }}>
-                Override applied: {appliedOverridePrice.toFixed(2)} USD
-              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Button
+                  variant="secondary"
+                  tone="critical"
+                  size="small"
+                  onPress={() => {
+                    setAppliedOverridePrice(null);
+                    setOverrideInput("0.00");
+                    setOverrideReason(null);
+                    setPriceOverrideType(null);
+                  }}
+                >
+                  Remove price override
+                </Button>
+                <span style={{ fontSize: "0.8125rem", color: "var(--cim-fg-success, #007e3f)", fontWeight: 500 }}>
+                  Override applied: {appliedOverridePrice.toFixed(2)} USD
+                </span>
+              </div>
             )}
           </div>
 
           {/* Add-ons section */}
           <div ref={addOnsRef} style={{ border: "1px solid var(--cim-border-base, #dadcdd)", borderRadius: "6px", overflow: "hidden" }}>
-            <Disclosure title="Add-ons">
+            <Disclosure title="Add-ons" variant="subtle">
               <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "8px", alignItems: "flex-start" }}>
                 <Button variant="secondary" size="small">Add new accessory</Button>
                 <Button variant="secondary" size="small">Add new service</Button>
@@ -636,17 +812,17 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
           </div>
 
           {/* Item price section */}
-          <div ref={itemPriceRef} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <div ref={itemPriceRef} style={{
+            background: "white",
+            border: "1px solid var(--cim-border-base, #dadcdd)",
+            borderRadius: "6px",
+            padding: "16px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "8px",
+          }}>
             <p style={sectionHeading}>Item Price</p>
-            <div style={{
-              background: "white",
-              border: "1px solid var(--cim-border-base, #dadcdd)",
-              borderRadius: "6px",
-              padding: "16px",
-              display: "flex",
-              flexDirection: "column",
-              gap: "8px",
-            }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.875rem", color: "var(--cim-fg-base)" }}>
                 <span>Price</span>
                 <span>{basePrice.toFixed(2)} USD</span>
