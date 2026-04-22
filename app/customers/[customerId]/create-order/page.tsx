@@ -1,20 +1,18 @@
 import { notFound } from "next/navigation";
-import { CUSTOMER_DATABASE } from "@/lib/createOrderMockData";
 import { CreateOrderPage } from "@/components/create-order/CreateOrderPage";
+import { getAllCustomerParams, findCustomer } from "@/lib/customerUtils";
 
 interface PageProps {
   params: Promise<{ customerId: string }>;
 }
 
 export function generateStaticParams() {
-  return CUSTOMER_DATABASE.map((customer) => ({
-    customerId: customer.id,
-  }));
+  return getAllCustomerParams();
 }
 
 export default async function Page({ params }: PageProps) {
   const { customerId } = await params;
-  const customer = CUSTOMER_DATABASE.find((c) => c.id === customerId);
+  const customer = findCustomer(customerId);
 
   if (!customer) {
     notFound();
