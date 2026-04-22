@@ -58,13 +58,13 @@ function generateQuantityOptions(min: number, max: number, tiers: QuantityPricin
   return [...opts].filter((q) => q >= min && q <= max).sort((a, b) => a - b);
 }
 
-function computeUpsell(product: ProductCatalogItem, qty: number): UpsellSuggestion | null {
+function computeUpsell(product: ProductCatalogItem, qty: number, unlimited = false): UpsellSuggestion | null {
   const currentPrice = resolvePricingTier(product.pricingTiers, qty);
   const sortedTiers = [...product.pricingTiers].sort((a, b) => a.minQty - b.minQty);
   const nextTier = sortedTiers.find((t) => t.minQty > qty && t.unitPrice < currentPrice);
   if (!nextTier) return null;
   const additionalUnits = nextTier.minQty - qty;
-  if (additionalUnits > 55) return null;
+  if (!unlimited && additionalUnits > 55) return null;
   const additionalCost = parseFloat((nextTier.minQty * nextTier.unitPrice - qty * currentPrice).toFixed(2));
   return { suggestedQty: nextTier.minQty, additionalUnits, additionalCost };
 }
@@ -138,6 +138,8 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
     const [overrideReason, setOverrideReason] = useState<string | null>(null);
     const [tierPage, setTierPage] = useState(0);
     const TIERS_PER_PAGE = 5;
+    const [isCustomQty, setIsCustomQty] = useState(false);
+    const [customQtyInput, setCustomQtyInput] = useState("");
 
     const unitPrice = resolvePricingTier(product.pricingTiers, quantity);
     const basePrice = parseFloat((unitPrice * quantity).toFixed(2));
@@ -155,11 +157,11 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
 
     const isValid = quantity >= product.minOrderQty && quantity <= product.maxOrderQty;
 
-    function handleQuantityChange(newQty: number) {
+    function handleQuantityChange(newQty: number, fromCustom = false) {
       setQuantity(newQty);
       setUpsellApplied(false);
       setPreUpsellQuantity(null);
-      setUpsellInfo(computeUpsell(product, newQty));
+      setUpsellInfo(computeUpsell(product, newQty, fromCustom));
     }
 
     function handleAddUpsell() {
@@ -167,6 +169,7 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
       setPreUpsellQuantity(quantity);
       setQuantity(upsellInfo.suggestedQty);
       setUpsellApplied(true);
+      setIsCustomQty(false);
     }
 
     function handleRemoveUpsell() {
@@ -476,27 +479,66 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
               </div>
               <div ref={quantityRef} style={{ borderTop: "1px solid var(--cim-border-subtle, #eaebeb)", padding: "12px", display: "flex", flexDirection: "column", gap: "12px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <div style={{ width: "280px" }}>
+                  <div style={{ width: "336px" }}>
                     <Select
                       label="Quantity"
-                      selectedKey={String(quantity)}
-                      onSelectionChange={(val) => handleQuantityChange(Number(val))}
+                      selectedKey={isCustomQty ? "custom" : String(quantity)}
+                      onSelectionChange={(val) => {
+                        if (String(val) === "custom") {
+                          setIsCustomQty(true);
+                          setCustomQtyInput(String(quantity));
+                        } else {
+                          setIsCustomQty(false);
+                          handleQuantityChange(Number(val));
+                        }
+                      }}
                     >
                       {quantityOptions.map((q) => {
                         const tierPrice = resolvePricingTier(product.pricingTiers, q);
                         const totalForQ = parseFloat((q * tierPrice).toFixed(2));
                         return (
                           <SelectItem key={String(q)} id={String(q)}>
-                            {q} ({totalForQ.toFixed(2)} USD) {tierPrice.toFixed(2)} / unit
+                            {q} (USD {totalForQ.toFixed(2)}) {tierPrice.toFixed(2)} / unit
                           </SelectItem>
                         );
                       })}
+                      <SelectItem id="custom">Enter custom quantity...</SelectItem>
                     </Select>
                   </div>
                   <div style={{ marginTop: "22px", color: "var(--cim-fg-subtle, #5f6469)", display: "flex" }}>
                     <IconInfoCircle />
                   </div>
                 </div>
+                {isCustomQty && (() => {
+                  const v = parseInt(customQtyInput, 10);
+                  const invalid = customQtyInput !== "" && (!isNaN(v) ? v < product.minOrderQty || v > product.maxOrderQty : true);
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <div style={{ display: "flex", alignItems: "center", border: `1px solid ${invalid ? "var(--cim-border-critical, #d10023)" : "var(--cim-border-base, #dadcdd)"}`, borderRadius: "4px", width: "280px", overflow: "hidden" }}>
+                        <input
+                          type="number"
+                          min={product.minOrderQty}
+                          max={product.maxOrderQty}
+                          value={customQtyInput}
+                          placeholder={`${product.minOrderQty} – ${product.maxOrderQty}`}
+                          onChange={(e) => {
+                            setCustomQtyInput(e.target.value);
+                            const n = parseInt(e.target.value, 10);
+                            if (!isNaN(n) && n >= product.minOrderQty && n <= product.maxOrderQty) {
+                              handleQuantityChange(n, true);
+                            }
+                          }}
+                          style={{ border: "none", outline: "none", padding: "7px 10px", flex: 1, fontSize: "0.875rem", background: "white" }}
+                        />
+                      </div>
+                      {invalid && (
+                        <span style={{ fontSize: "0.75rem", color: "var(--cim-fg-critical, #d10023)" }}>
+                          Must be between {product.minOrderQty} and {product.maxOrderQty}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
                 <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-subtle, #5f6469)" }}>
                   Quantity has to be between {product.minOrderQty} - {product.maxOrderQty}
                 </span>
@@ -538,27 +580,66 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
               <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "12px" }}>
                 <p style={sectionHeading}>Quantity</p>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <div style={{ width: "280px" }}>
+                  <div style={{ width: "336px" }}>
                     <Select
                       label="Quantity"
-                      selectedKey={String(quantity)}
-                      onSelectionChange={(val) => handleQuantityChange(Number(val))}
+                      selectedKey={isCustomQty ? "custom" : String(quantity)}
+                      onSelectionChange={(val) => {
+                        if (String(val) === "custom") {
+                          setIsCustomQty(true);
+                          setCustomQtyInput(String(quantity));
+                        } else {
+                          setIsCustomQty(false);
+                          handleQuantityChange(Number(val));
+                        }
+                      }}
                     >
                       {quantityOptions.map((q) => {
                         const tierPrice = resolvePricingTier(product.pricingTiers, q);
                         const totalForQ = parseFloat((q * tierPrice).toFixed(2));
                         return (
                           <SelectItem key={String(q)} id={String(q)}>
-                            {q} ({totalForQ.toFixed(2)} USD) {tierPrice.toFixed(2)} / unit
+                            {q} (USD {totalForQ.toFixed(2)}) {tierPrice.toFixed(2)} / unit
                           </SelectItem>
                         );
                       })}
+                      <SelectItem id="custom">Enter custom quantity...</SelectItem>
                     </Select>
                   </div>
                   <div style={{ marginTop: "22px", color: "var(--cim-fg-subtle, #5f6469)", display: "flex" }}>
                     <IconInfoCircle />
                   </div>
                 </div>
+                {isCustomQty && (() => {
+                  const v = parseInt(customQtyInput, 10);
+                  const invalid = customQtyInput !== "" && (!isNaN(v) ? v < product.minOrderQty || v > product.maxOrderQty : true);
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <div style={{ display: "flex", alignItems: "center", border: `1px solid ${invalid ? "var(--cim-border-critical, #d10023)" : "var(--cim-border-base, #dadcdd)"}`, borderRadius: "4px", width: "280px", overflow: "hidden" }}>
+                        <input
+                          type="number"
+                          min={product.minOrderQty}
+                          max={product.maxOrderQty}
+                          value={customQtyInput}
+                          placeholder={`${product.minOrderQty} – ${product.maxOrderQty}`}
+                          onChange={(e) => {
+                            setCustomQtyInput(e.target.value);
+                            const n = parseInt(e.target.value, 10);
+                            if (!isNaN(n) && n >= product.minOrderQty && n <= product.maxOrderQty) {
+                              handleQuantityChange(n, true);
+                            }
+                          }}
+                          style={{ border: "none", outline: "none", padding: "7px 10px", flex: 1, fontSize: "0.875rem", background: "white" }}
+                        />
+                      </div>
+                      {invalid && (
+                        <span style={{ fontSize: "0.75rem", color: "var(--cim-fg-critical, #d10023)" }}>
+                          Must be between {product.minOrderQty} and {product.maxOrderQty}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
                 <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-subtle, #5f6469)" }}>
                   Quantity has to be between {product.minOrderQty} - {product.maxOrderQty}
                 </span>

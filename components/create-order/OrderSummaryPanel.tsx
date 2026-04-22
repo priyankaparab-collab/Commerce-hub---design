@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Disclosure, TextField, NumberField } from "@cimpress-ui/react";
+import { Button, Disclosure, TextField, Select, SelectItem } from "@cimpress-ui/react";
 import type { DraftOrder, DraftOrderItem } from "@/lib/types";
 import { MOCK_DISCOUNT_CODES } from "@/lib/createOrderMockData";
 
@@ -73,16 +73,17 @@ export function OrderSummaryPanel({
   const [discountCode, setDiscountCode] = useState(draftOrder.discountCode);
   const [discountError, setDiscountError] = useState<string | null>(null);
   const [discountApplied, setDiscountApplied] = useState(false);
-  const [overridePriceInput, setOverridePriceInput] = useState<number | undefined>(
-    draftOrder.overridePrice !== null ? draftOrder.overridePrice : undefined
-  );
+  const [priceOverrideType, setPriceOverrideType] = useState<"new" | "percentage" | null>(null);
+  const [overrideInput, setOverrideInput] = useState("0.00");
+  const [overrideReason, setOverrideReason] = useState<string | null>(null);
+  const [appliedOverridePrice, setAppliedOverridePrice] = useState<number | null>(null);
 
   const hasItems = draftOrder.items.length > 0;
   const summary = computeSummary(draftOrder.items);
   const itemCount = draftOrder.items.length;
 
-  const displayTotal = draftOrder.overridePrice !== null
-    ? draftOrder.overridePrice
+  const displayTotal = appliedOverridePrice !== null
+    ? appliedOverridePrice
     : summary.total;
 
   function handleApplyDiscount() {
@@ -102,10 +103,6 @@ export function OrderSummaryPanel({
     onDiscountApplied(code, percent);
   }
 
-  function handleOverridePriceChange(val: number | null) {
-    setOverridePriceInput(val == null || isNaN(val) ? undefined : val);
-    onOverridePriceChange(val == null || isNaN(val) ? null : val);
-  }
 
   return (
     <div style={{
@@ -239,21 +236,141 @@ export function OrderSummaryPanel({
 
       {/* Override price — Disclosure */}
       <Disclosure title="Override price" variant="subtle">
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px", paddingTop: "4px" }}>
-          <NumberField
-            label="Override total price (USD)"
-            value={overridePriceInput}
-            onChange={handleOverridePriceChange}
-            minValue={0}
-            formatOptions={{ style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 }}
-          />
-          <span style={{ fontSize: "0.75rem", color: "var(--cim-fg-muted)" }}>
-            Setting an override price replaces the calculated total. Use with caution.
-          </span>
-          {overridePriceInput !== undefined && (
-            <Button variant="tertiary" size="small" onPress={() => { setOverridePriceInput(undefined); onOverridePriceChange(null); }}>
-              Remove override
-            </Button>
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", paddingTop: "4px" }}>
+          <p style={{ fontSize: "1rem", fontWeight: 600, color: "var(--cim-fg-base, #15191d)", margin: 0 }}>
+            Price override{" "}
+            <span style={{ fontSize: "0.875rem", fontWeight: 400, color: "var(--cim-fg-subtle, #5f6469)" }}>
+              (Current price USD {summary.total.toFixed(2)})
+            </span>
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+              <input
+                type="radio"
+                name="orderPriceOverrideType"
+                value="new"
+                checked={priceOverrideType === "new"}
+                onChange={() => setPriceOverrideType("new")}
+                style={{ accentColor: "var(--cim-fg-accent, #0091b8)", cursor: "pointer", width: "16px", height: "16px", flexShrink: 0 }}
+              />
+              <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)" }}>New price</span>
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+              <input
+                type="radio"
+                name="orderPriceOverrideType"
+                value="percentage"
+                checked={priceOverrideType === "percentage"}
+                onChange={() => setPriceOverrideType("percentage")}
+                style={{ accentColor: "var(--cim-fg-accent, #0091b8)", cursor: "pointer", width: "16px", height: "16px", flexShrink: 0 }}
+              />
+              <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)" }}>Percentage based pricing</span>
+            </label>
+          </div>
+          {(() => {
+            const val = parseFloat(overrideInput);
+            const hasInput = overrideInput !== "" && !isNaN(val) && val > 0;
+            const isAboveOriginal = priceOverrideType === "new"
+              ? hasInput && val >= summary.total
+              : hasInput && val <= 0;
+            const inputError = isAboveOriginal
+              ? priceOverrideType === "new"
+                ? `Must be less than current price (${summary.total.toFixed(2)} USD)`
+                : "Discount percentage must be greater than 0"
+              : null;
+            const canSave = !priceOverrideType || !hasInput || isAboveOriginal || !overrideReason;
+            return (
+              <div style={{ opacity: priceOverrideType === null ? 0.4 : 1, display: "flex", flexDirection: "column", gap: "12px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    border: `1px solid ${inputError ? "var(--cim-border-critical, #d10023)" : "var(--cim-border-base, #dadcdd)"}`,
+                    borderRadius: "4px",
+                    overflow: "hidden",
+                    width: "180px",
+                  }}>
+                    <span style={{
+                      padding: "7px 8px",
+                      background: "var(--cim-bg-subtle, #f8f9fa)",
+                      fontSize: "0.875rem",
+                      color: "var(--cim-fg-subtle, #5f6469)",
+                      borderRight: `1px solid ${inputError ? "var(--cim-border-critical, #d10023)" : "var(--cim-border-base, #dadcdd)"}`,
+                      flexShrink: 0,
+                    }}>
+                      {priceOverrideType === "percentage" ? "%" : "USD"}
+                    </span>
+                    <input
+                      type="number"
+                      value={overrideInput}
+                      min={0}
+                      max={priceOverrideType === "new" ? summary.total - 0.01 : 99.99}
+                      step={0.01}
+                      disabled={priceOverrideType === null}
+                      onChange={(e) => setOverrideInput(e.target.value)}
+                      style={{ border: "none", outline: "none", padding: "7px 8px", flex: 1, fontSize: "0.875rem", background: "white", cursor: priceOverrideType === null ? "not-allowed" : "auto" }}
+                    />
+                  </div>
+                  {inputError && (
+                    <span style={{ fontSize: "0.75rem", color: "var(--cim-fg-critical, #d10023)" }}>{inputError}</span>
+                  )}
+                </div>
+                <div style={{ maxWidth: "320px" }}>
+                  <Select
+                    label="Reason for price override"
+                    selectedKey={overrideReason}
+                    onSelectionChange={(v) => setOverrideReason(String(v))}
+                    placeholder="Select a reason"
+                    isRequired
+                    isDisabled={priceOverrideType === null}
+                  >
+                    <SelectItem id="customer-loyalty">Customer loyalty discount</SelectItem>
+                    <SelectItem id="competitor-match">Competitor price match</SelectItem>
+                    <SelectItem id="manager-approval">Manager approval</SelectItem>
+                    <SelectItem id="promotional-offer">Promotional offer</SelectItem>
+                    <SelectItem id="damaged-goods">Damaged goods</SelectItem>
+                    <SelectItem id="other">Other</SelectItem>
+                  </Select>
+                </div>
+                {appliedOverridePrice === null && (
+                  <Button
+                    variant="secondary"
+                    size="small"
+                    isDisabled={canSave}
+                    onPress={() => {
+                      const saved = priceOverrideType === "new"
+                        ? val
+                        : parseFloat((summary.total * (1 - val / 100)).toFixed(2));
+                      setAppliedOverridePrice(saved);
+                      onOverridePriceChange(saved);
+                    }}
+                  >
+                    Save changes to price
+                  </Button>
+                )}
+              </div>
+            );
+          })()}
+          {appliedOverridePrice !== null && (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <Button
+                variant="secondary"
+                tone="critical"
+                size="small"
+                onPress={() => {
+                  setAppliedOverridePrice(null);
+                  setOverrideInput("0.00");
+                  setOverrideReason(null);
+                  setPriceOverrideType(null);
+                  onOverridePriceChange(null);
+                }}
+              >
+                Remove price override
+              </Button>
+              <span style={{ fontSize: "0.8125rem", color: "var(--cim-fg-success, #007e3f)", fontWeight: 500 }}>
+                Override applied: {appliedOverridePrice.toFixed(2)} USD
+              </span>
+            </div>
           )}
         </div>
       </Disclosure>

@@ -14,6 +14,7 @@ interface ProductSearchPanelProps {
   onEditItem: (draftItemId: string) => void;
   onRemoveItem: (draftItemId: string) => void;
   onDuplicateItem: (draftItemId: string) => void;
+  onQuantityChange: (draftItemId: string, newQty: number) => void;
   editingItem: DraftOrderItem | null;
 }
 
@@ -34,6 +35,7 @@ export function ProductSearchPanel({
   onEditItem,
   onRemoveItem,
   onDuplicateItem,
+  onQuantityChange,
   editingItem,
 }: ProductSearchPanelProps) {
   const [searchQuery, setSearchQuery] = useState(editingItem ? editingItem.product.name : "");
@@ -146,6 +148,7 @@ export function ProductSearchPanel({
           onEdit={handleEditItem}
           onRemove={onRemoveItem}
           onDuplicate={onDuplicateItem}
+          onQuantityChange={onQuantityChange}
         />
       )}
     </div>

@@ -1,23 +1,44 @@
 "use client";
 
 import { useState } from "react";
-import { Checkbox, Button, Disclosure, AlertDialog, AlertDialogBody, AlertDialogActions } from "@cimpress-ui/react";
+import {
+  Checkbox, Button, Disclosure, AlertDialog, AlertDialogBody, AlertDialogActions,
+  Select, SelectItem,
+} from "@cimpress-ui/react";
 import {
   IconTrash,
   IconPencil,
   IconDuplicate,
-  IconInfoCircle,
   IconCheckCircleFill,
-  IconChevronDown,
+  IconInfoCircle,
 } from "@cimpress-ui/react/icons";
+import type { QuantityPricingTier } from "@/lib/types";
 import type { DraftOrderItem } from "@/lib/types";
 import { Toast } from "@/components/Toast";
+
+function resolvePricingTier(tiers: QuantityPricingTier[], qty: number): number {
+  for (const tier of [...tiers].reverse()) {
+    if (qty >= tier.minQty) return tier.unitPrice;
+  }
+  return tiers[0]?.unitPrice ?? 0;
+}
+
+function generateQuantityOptions(min: number, max: number, tiers: QuantityPricingTier[]): number[] {
+  const opts = new Set<number>([min, max]);
+  tiers.forEach((t) => { opts.add(t.minQty); if (t.maxQty) opts.add(t.maxQty); });
+  if (max - min <= 500) {
+    const step = Math.ceil((max - min) / 6);
+    for (let q = min; q <= max; q += step) opts.add(q);
+  }
+  return [...opts].filter((q) => q >= min && q <= max).sort((a, b) => a - b);
+}
 
 interface OrderItemsListProps {
   items: DraftOrderItem[];
   onEdit: (draftItemId: string) => void;
   onRemove: (draftItemId: string) => void;
   onDuplicate: (draftItemId: string) => void;
+  onQuantityChange?: (draftItemId: string, newQty: number) => void;
 }
 
 const iconBtnStyle: React.CSSProperties = {
@@ -33,7 +54,7 @@ const iconBtnStyle: React.CSSProperties = {
   color: "var(--cim-fg-subtle, #5f6469)",
 };
 
-export function OrderItemsList({ items, onEdit, onRemove, onDuplicate }: OrderItemsListProps) {
+export function OrderItemsList({ items, onEdit, onRemove, onDuplicate, onQuantityChange }: OrderItemsListProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [removingItemId, setRemovingItemId] = useState<string | null>(null);
   const [showDuplicateToast, setShowDuplicateToast] = useState(false);
@@ -238,38 +259,32 @@ export function OrderItemsList({ items, onEdit, onRemove, onDuplicate }: OrderIt
                   <div style={{ flex: 1, display: "flex", alignItems: "flex-start", justifyContent: "space-between", minWidth: 0 }}>
                     {/* Left: quantity */}
                     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                        <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)" }}>Quantity</span>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <div style={{
-                            minWidth: "280px",
-                            border: "1px solid var(--cim-border-base, #dadcdd)",
-                            borderRadius: "4px",
-                            padding: "8px 12px",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            background: "white",
-                            cursor: "pointer",
-                          }}>
-                            <span>
-                              <span style={{ fontSize: "1rem", color: "var(--cim-fg-base, #15191d)" }}>
-                                {item.quantity} (USD {(item.quantity * item.unitPrice).toFixed(2)}){" "}
-                              </span>
-                              <span style={{ fontSize: "0.75rem", color: "var(--cim-fg-subtle, #5f6469)" }}>
-                                {item.unitPrice.toFixed(2)} / unit
-                              </span>
-                            </span>
-                            <IconChevronDown />
-                          </div>
-                          <span style={{ color: "var(--cim-fg-subtle)", display: "flex" }}>
-                            <IconInfoCircle />
-                          </span>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <div style={{ width: "336px" }}>
+                          <Select
+                            label="Quantity"
+                            selectedKey={String(item.quantity)}
+                            onSelectionChange={(val) => onQuantityChange?.(item.draftItemId, Number(val))}
+                            isDisabled={!onQuantityChange}
+                          >
+                            {generateQuantityOptions(item.product.minOrderQty, item.product.maxOrderQty, item.product.pricingTiers).map((q) => {
+                              const tierPrice = resolvePricingTier(item.product.pricingTiers, q);
+                              const totalForQ = parseFloat((q * tierPrice).toFixed(2));
+                              return (
+                                <SelectItem key={String(q)} id={String(q)}>
+                                  {q} (USD {totalForQ.toFixed(2)}) {tierPrice.toFixed(2)} / unit
+                                </SelectItem>
+                              );
+                            })}
+                          </Select>
                         </div>
-                        <span style={{ fontSize: "0.75rem", color: "var(--cim-fg-subtle, #5f6469)" }}>
-                          Quantity has to be between {item.product.minOrderQty} - {item.product.maxOrderQty}
-                        </span>
+                        <div style={{ marginTop: "22px", color: "var(--cim-fg-subtle, #5f6469)", display: "flex" }}>
+                          <IconInfoCircle />
+                        </div>
                       </div>
+                      <span style={{ fontSize: "0.75rem", color: "var(--cim-fg-subtle, #5f6469)" }}>
+                        Quantity has to be between {item.product.minOrderQty} - {item.product.maxOrderQty}
+                      </span>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                         <span style={{ color: "var(--cim-fg-success, #15803d)", display: "flex" }}>
                           <IconCheckCircleFill />

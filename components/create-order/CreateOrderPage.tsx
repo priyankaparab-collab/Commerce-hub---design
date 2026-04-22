@@ -88,6 +88,16 @@ export function CreateOrderPage({ customer }: CreateOrderPageProps) {
     }
   }
 
+  function handleQuantityChangeItem(draftItemId: string, newQty: number) {
+    setItems((prev) => prev.map((i) => {
+      if (i.draftItemId !== draftItemId) return i;
+      const tiers = i.product.pricingTiers;
+      const unitPrice = [...tiers].reverse().find((t) => newQty >= t.minQty)?.unitPrice ?? tiers[0]?.unitPrice ?? 0;
+      const lineTotal = parseFloat((unitPrice * newQty * (1 - i.itemDiscount / 100)).toFixed(2));
+      return { ...i, quantity: newQty, unitPrice, lineTotal };
+    }));
+  }
+
   function handleDiscountApplied(code: string, percent: number) {
     setDiscountCode(code);
     setOrderDiscount(percent);
@@ -176,6 +186,7 @@ export function CreateOrderPage({ customer }: CreateOrderPageProps) {
                 onEditItem={handleEditItem}
                 onRemoveItem={handleRemoveItem}
                 onDuplicateItem={handleDuplicateItem}
+                onQuantityChange={handleQuantityChangeItem}
                 editingItem={editingItem}
               />
             )}
