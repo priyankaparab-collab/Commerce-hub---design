@@ -436,11 +436,11 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
             </div>
           </div>
 
-          {/* Attributes + Quantity section */}
-          {product.attributes.length > 0 ? (
-            <div ref={attributesRef} style={{ ...sectionCard, padding: 0, gap: 0, overflow: "hidden" }}>
-              <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "16px" }}>
-                <p style={sectionHeading}>Attributes</p>
+          {/* Attributes section */}
+          {product.attributes.length > 0 && (
+            <div ref={attributesRef} style={sectionCard}>
+              <p style={sectionHeading}>Attributes</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                 {product.attributes.map((attr) => {
                   const currentVal = selectedAttributes.find((a) => a.attributeId === attr.id)?.selectedOptionId ?? "";
                   if (attr.type === "color") {
@@ -519,134 +519,12 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
                   );
                 })}
               </div>
-              <div ref={quantityRef} style={{ borderTop: "1px solid var(--cim-border-subtle, #eaebeb)", padding: "12px", display: "flex", flexDirection: "column", gap: "12px" }}>
-                <div style={{ display: "flex", alignItems: "flex-start", gap: "16px", width: "100%", flexWrap: "wrap" }}>
-                  {/* Left: field + stock */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <TextField
-                          label="Quantity"
-                          value={quantityInput}
-                          placeholder="Enter quantity"
-                          description={`Between ${product.minOrderQty} – ${product.maxOrderQty}`}
-                          isInvalid={
-                            quantityInput !== "" && (isNaN(parseInt(quantityInput, 10)) || parseInt(quantityInput, 10) < product.minOrderQty || parseInt(quantityInput, 10) > product.maxOrderQty)
-                              ? true
-                              : false
-                          }
-                          error={
-                            quantityInput !== "" && parseInt(quantityInput, 10) < product.minOrderQty
-                              ? `Minimum is ${product.minOrderQty}`
-                              : quantityInput !== "" && parseInt(quantityInput, 10) > product.maxOrderQty
-                              ? `Maximum is ${product.maxOrderQty}`
-                              : undefined
-                          }
-                          onChange={(val) => {
-                            setQuantityInput(val);
-                            const n = parseInt(val, 10);
-                            if (!isNaN(n) && n >= product.minOrderQty && n <= product.maxOrderQty) {
-                              handleQuantityChange(n);
-                            }
-                          }}
-                          inputMode="numeric"
-                        />
-                      </div>
-                      <div style={{ marginTop: "20px", color: "var(--cim-fg-subtle, #5f6469)", display: "flex", flexShrink: 0 }}>
-                        <IconInfoCircle />
-                      </div>
-                    </div>
-                    {product.stockQuantity !== undefined && (
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <span style={{ color: "var(--cim-fg-success, #007e3f)", display: "flex" }}>
-                          <IconCheckCircleFill />
-                        </span>
-                        <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)" }}>
-                          In stock - {product.stockQuantity}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  {/* Unit price */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "200px", flexShrink: 0 }}>
-                    <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)", lineHeight: "20px" }}>Unit price</span>
-                    <div style={{
-                      display: "flex", alignItems: "center",
-                      minHeight: "40px", borderRadius: "4px",
-                      border: "1px solid var(--cim-border-base, #dadcdd)",
-                      background: "var(--cim-bg-subtle, #f8f9fa)",
-                      overflow: "hidden",
-                    }}>
-                      {quantityInput === "" ? (
-                        <span style={{
-                          flex: 1, padding: "8px 12px",
-                          fontSize: "1rem", lineHeight: "24px",
-                          color: "var(--cim-fg-muted, #94979b)",
-                        }}>—</span>
-                      ) : (
-                        <>
-                          <span style={{
-                            padding: "8px 8px 8px 12px",
-                            fontSize: "1rem", lineHeight: "24px",
-                            color: "var(--cim-fg-subtle, #5f6469)",
-                            flexShrink: 0,
-                          }}>USD</span>
-                          <span style={{
-                            flex: 1, padding: "8px 12px",
-                            fontSize: "1rem", lineHeight: "24px",
-                            color: "var(--cim-fg-base, #15191d)",
-                          }}>{unitPrice.toFixed(2)}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  {/* Subtotal */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "200px", flexShrink: 0 }}>
-                    <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)", lineHeight: "20px" }}>Subtotal</span>
-                    <div style={{
-                      display: "flex", alignItems: "center",
-                      minHeight: "40px", borderRadius: "4px",
-                      border: "1px solid var(--cim-border-base, #dadcdd)",
-                      background: "var(--cim-bg-subtle, #f8f9fa)",
-                      overflow: "hidden",
-                    }}>
-                      {quantityInput === "" ? (
-                        <span style={{
-                          flex: 1, padding: "8px 12px",
-                          fontSize: "1rem", lineHeight: "24px",
-                          color: "var(--cim-fg-muted, #94979b)",
-                        }}>—</span>
-                      ) : (
-                        <>
-                          <span style={{
-                            padding: "8px 8px 8px 12px",
-                            fontSize: "1rem", lineHeight: "24px",
-                            color: "var(--cim-fg-subtle, #5f6469)",
-                            flexShrink: 0,
-                          }}>USD</span>
-                          <span style={{
-                            flex: 1, padding: "8px 12px",
-                            fontSize: "1rem", lineHeight: "24px",
-                            color: "var(--cim-fg-base, #15191d)",
-                          }}>{basePrice.toFixed(2)}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <a
-                  href="https://ui.cimpress.io"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ fontSize: "0.875rem", color: "var(--cim-fg-accent, #007798)", textDecoration: "underline", width: "fit-content" }}
-                >
-                  View pricing guide
-                </a>
-              </div>
             </div>
-          ) : (
-            <div ref={quantityRef} style={{ ...sectionCard, padding: 0, gap: 0, overflow: "hidden" }}>
-              <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "12px" }}>
+          )}
+
+          {/* Quantity section */}
+          <div ref={quantityRef} style={{ ...sectionCard, padding: 0, gap: 0, overflow: "hidden" }}>
+            <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "12px" }}>
                 <p style={sectionHeading}>Quantity</p>
                 <div style={{ display: "flex", alignItems: "flex-start", gap: "16px", width: "100%" }}>
                   {/* Left: field + stock */}
@@ -770,9 +648,8 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
                 >
                   View pricing guide
                 </a>
-              </div>
             </div>
-          )}
+          </div>
 
           {/* Artwork section */}
           <div ref={artworkRef} style={sectionCard}>
