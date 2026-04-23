@@ -530,12 +530,12 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
                           value={quantityInput}
                           placeholder="Enter quantity"
                           description={`Between ${product.minOrderQty} – ${product.maxOrderQty}`}
-                          validationState={
+                          isInvalid={
                             quantityInput !== "" && (isNaN(parseInt(quantityInput, 10)) || parseInt(quantityInput, 10) < product.minOrderQty || parseInt(quantityInput, 10) > product.maxOrderQty)
-                              ? "invalid"
-                              : undefined
+                              ? true
+                              : false
                           }
-                          errorMessage={
+                          error={
                             quantityInput !== "" && parseInt(quantityInput, 10) < product.minOrderQty
                               ? `Minimum is ${product.minOrderQty}`
                               : quantityInput !== "" && parseInt(quantityInput, 10) > product.maxOrderQty
@@ -650,12 +650,12 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
                           value={quantityInput}
                           placeholder="Enter quantity"
                           description={`Between ${product.minOrderQty} – ${product.maxOrderQty}`}
-                          validationState={
+                          isInvalid={
                             quantityInput !== "" && (isNaN(parseInt(quantityInput, 10)) || parseInt(quantityInput, 10) < product.minOrderQty || parseInt(quantityInput, 10) > product.maxOrderQty)
-                              ? "invalid"
-                              : undefined
+                              ? true
+                              : false
                           }
-                          errorMessage={
+                          error={
                             quantityInput !== "" && parseInt(quantityInput, 10) < product.minOrderQty
                               ? `Minimum is ${product.minOrderQty}`
                               : quantityInput !== "" && parseInt(quantityInput, 10) > product.maxOrderQty

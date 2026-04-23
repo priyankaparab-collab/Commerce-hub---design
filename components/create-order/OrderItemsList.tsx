@@ -259,9 +259,8 @@ export function OrderItemsList({ items, onEdit, onRemove, onDuplicate, onQuantit
                           label="Quantity"
                           value={String(item.quantity)}
                           description={`Between ${item.product.minOrderQty} – ${item.product.maxOrderQty}`}
-                          validationState={
+                          isInvalid={
                             item.quantity < item.product.minOrderQty || item.quantity > item.product.maxOrderQty
-                              ? "invalid" : undefined
                           }
                           onChange={(val) => {
                             const n = parseInt(val, 10);

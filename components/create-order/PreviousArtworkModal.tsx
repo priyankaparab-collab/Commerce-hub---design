@@ -93,7 +93,6 @@ export function PreviousArtworkModal({ onConfirm, onCancel }: PreviousArtworkMod
                     flexDirection: "column",
                     alignItems: "center",
                     gap: "8px",
-                    background: "none",
                     border: "none",
                     cursor: "pointer",
                     padding: "8px",
