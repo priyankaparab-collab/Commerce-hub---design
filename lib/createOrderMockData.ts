@@ -295,6 +295,15 @@ export const MOCK_PRODUCT_CATALOG: ProductCatalogItem[] = [
           { id: "rounded", label: "Rounded" },
         ],
       },
+      {
+        id: "orientation",
+        label: "Product Orientation",
+        type: "radio",
+        options: [
+          { id: "vertical", label: "Vertical" },
+          { id: "horizontal", label: "Horizontal" },
+        ],
+      },
     ],
     minOrderQty: 100,
     maxOrderQty: 100000,
@@ -481,6 +490,66 @@ export const MOCK_PRODUCT_CATALOG: ProductCatalogItem[] = [
     ],
     minOrderQty: 10,
     maxOrderQty: 5000,
+  },
+  {
+    id: "CIM-7FLY2XP",
+    name: "Premium Flyers",
+    category: "Flyers & Leaflets",
+    imageUrl: "https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=64&h=64&fit=crop",
+    baseUnitPrice: 0.10,
+    pricingTiers: [
+      { minQty: 50, maxQty: 99, unitPrice: 0.14 },
+      { minQty: 100, maxQty: 249, unitPrice: 0.10 },
+      { minQty: 250, maxQty: 499, unitPrice: 0.08 },
+      { minQty: 500, maxQty: null, unitPrice: 0.06 },
+    ],
+    attributes: [
+      {
+        id: "size",
+        label: "Size",
+        type: "select",
+        options: [
+          { id: "a5", label: 'A5 (5.8" × 8.3")' },
+          { id: "a4", label: 'A4 (8.3" × 11.7")' },
+          { id: "letter", label: 'Letter (8.5" × 11")' },
+          { id: "11x17", label: '11" × 17"' },
+        ],
+      },
+      {
+        id: "orientation",
+        label: "Product Orientation",
+        type: "radio",
+        options: [
+          { id: "vertical", label: "Vertical" },
+          { id: "horizontal", label: "Horizontal" },
+        ],
+      },
+      {
+        id: "paper_thickness",
+        label: "Paper Thickness",
+        type: "select",
+        options: [
+          { id: "standard", label: "Standard" },
+          { id: "premium", label: "Premium" },
+          { id: "heavy", label: "Heavy" },
+        ],
+      },
+      {
+        id: "paper_stock",
+        label: "Paper Stock",
+        type: "select",
+        options: [
+          { id: "matte", label: "Matte" },
+          { id: "gloss", label: "Gloss" },
+          { id: "silk", label: "Silk" },
+          { id: "uncoated", label: "Uncoated" },
+        ],
+      },
+    ],
+    minOrderQty: 50,
+    maxOrderQty: 5000,
+    stockQuantity: 250,
+    taxRate: 8,
   },
   {
     id: "PRD-5678ZPL",

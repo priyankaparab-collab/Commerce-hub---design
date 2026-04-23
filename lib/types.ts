@@ -92,7 +92,7 @@ export interface ProductAttributeOption {
 export interface ProductAttribute {
   id: string;
   label: string;
-  type: "select" | "color";
+  type: "select" | "color" | "radio";
   options: ProductAttributeOption[];
 }
 
@@ -128,6 +128,13 @@ export interface DraftOrderItemAttribute {
   selectedOptionId: string;
 }
 
+export interface DraftOrderItemAccessory {
+  id: string;
+  label: string;
+  quantity: number;
+  unitPrice: number;
+}
+
 export interface DraftOrderItem {
   draftItemId: string; // client-side UUID
   product: ProductCatalogItem;
@@ -139,6 +146,7 @@ export interface DraftOrderItem {
   itemDiscount: number; // percentage 0–100
   unitPrice: number; // resolved from pricing tier
   lineTotal: number; // (unitPrice * qty) * (1 - itemDiscount/100)
+  accessories?: DraftOrderItemAccessory[];
 }
 
 export interface DraftOrder {

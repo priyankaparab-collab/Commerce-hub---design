@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { Button, TextField, Checkbox } from "@cimpress-ui/react";
-import { IconArrowLeft, IconCloseBold } from "@cimpress-ui/react/icons";
-import type { SavedAddress, ShippingMethod, DraftOrderItem } from "@/lib/types";
+import { IconArrowLeft, IconCloseBold, IconDeliveryTruck } from "@cimpress-ui/react/icons";
+import type { SavedAddress, ShippingMethod, DraftOrderItem, DraftOrder } from "@/lib/types";
 import { MOCK_SAVED_ADDRESSES, MOCK_SHIPPING_METHODS } from "@/lib/createOrderMockData";
 
-type DrawerView = "main" | "add-address" | "select-shipping";
+type DrawerView = "main" | "add-address" | "select-shipping" | "review";
 type AddressTarget = "shipping" | "billing";
+type ReviewTab = "order-details" | "address-shipping";
 
 interface AddressForm {
   firstName: string;
@@ -33,37 +34,10 @@ const EMPTY_FORM: AddressForm = {
 interface ShippingDrawerProps {
   isOpen: boolean;
   items: DraftOrderItem[];
+  draftOrder: DraftOrder;
   onClose: () => void;
   onReviewToCheckout: () => void;
-}
-
-function TruckIcon() {
-  return (
-    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-      <path d="M2 10h18v14H2zM20 13h6l4 5v6h-10V13z" stroke="var(--cim-fg-muted,#94979b)" strokeWidth="1.5" strokeLinejoin="round" fill="none" />
-      <circle cx="8" cy="24" r="2" stroke="var(--cim-fg-muted,#94979b)" strokeWidth="1.5" fill="none" />
-      <circle cx="24" cy="24" r="2" stroke="var(--cim-fg-muted,#94979b)" strokeWidth="1.5" fill="none" />
-    </svg>
-  );
-}
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "var(--cim-fg-base,#15191d)", margin: 0 }}>
-      {children}
-    </h3>
-  );
-}
-
-function LinkBtn({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "0.875rem", color: "var(--cim-fg-accent,#007798)", textDecoration: "underline" }}
-    >
-      {children}
-    </button>
-  );
+  onShippingCostChange?: (cost: number) => void;
 }
 
 function DefaultBadge() {
@@ -78,16 +52,68 @@ function DefaultBadge() {
   );
 }
 
-export function ShippingDrawer({ isOpen, items, onClose, onReviewToCheckout }: ShippingDrawerProps) {
+function ReviewPriceRow({
+  label, value, subtle, accent, indent,
+}: {
+  label: string; value: string; subtle?: boolean; accent?: boolean; indent?: boolean;
+}) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingLeft: indent ? "16px" : "0" }}>
+      <span style={{ fontSize: "1rem", color: subtle ? "var(--cim-fg-subtle,#5f6469)" : "var(--cim-fg-base,#15191d)" }}>
+        {label}
+      </span>
+      <span style={{ fontSize: "1rem", color: accent ? "var(--cim-fg-success,#15803d)" : (subtle ? "var(--cim-fg-subtle,#5f6469)" : "var(--cim-fg-base,#15191d)") }}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function computeReviewSummary(items: DraftOrderItem[]) {
+  let grossTotal = 0;
+  let totalDiscount = 0;
+  let totalTax = 0;
+  let accessoriesTotal = 0;
+
+  for (const item of items) {
+    const gross = item.quantity * item.unitPrice;
+    const discount = gross * (item.itemDiscount / 100);
+    const taxRate = item.product.taxRate ?? 8;
+    const tax = item.lineTotal * (taxRate / 100);
+    grossTotal += gross;
+    totalDiscount += discount;
+    totalTax += tax;
+    if (item.accessories) {
+      for (const acc of item.accessories) {
+        accessoriesTotal += acc.quantity * acc.unitPrice;
+      }
+    }
+  }
+
+  const subtotal = parseFloat((grossTotal - totalDiscount + accessoriesTotal).toFixed(2));
+  return {
+    grossTotal: parseFloat(grossTotal.toFixed(2)),
+    totalDiscount: parseFloat(totalDiscount.toFixed(2)),
+    accessoriesTotal: parseFloat(accessoriesTotal.toFixed(2)),
+    subtotal,
+    totalTax: parseFloat(totalTax.toFixed(2)),
+  };
+}
+
+export function ShippingDrawer({ isOpen, items, draftOrder, onClose, onReviewToCheckout, onShippingCostChange }: ShippingDrawerProps) {
   const [view, setView] = useState<DrawerView>("main");
+  const [reviewTab, setReviewTab] = useState<ReviewTab>("order-details");
   const [addressTarget, setAddressTarget] = useState<AddressTarget>("shipping");
   const [addresses, setAddresses] = useState<SavedAddress[]>(MOCK_SAVED_ADDRESSES);
-  const [shippingAddressId, setShippingAddressId] = useState<string | null>(null);
+  const defaultAddr = MOCK_SAVED_ADDRESSES.find((a) => a.isDefault) ?? MOCK_SAVED_ADDRESSES[0] ?? null;
+  const firstMethod = MOCK_SHIPPING_METHODS[0] ?? null;
+
+  const [shippingAddressId, setShippingAddressId] = useState<string | null>(defaultAddr?.id ?? null);
   const [billingAddressId, setBillingAddressId] = useState<string | null>(null);
   const [billingSameAsShipping, setBillingSameAsShipping] = useState(true);
-  const [shippingMethodId, setShippingMethodId] = useState<string | null>(null);
+  const [shippingMethodId, setShippingMethodId] = useState<string | null>(firstMethod?.id ?? null);
   const [pendingMethodId, setPendingMethodId] = useState<string | null>(null);
-  const [expandedMethodId, setExpandedMethodId] = useState<string | null>(null);
+  const [expandedMethodId, setExpandedMethodId] = useState<string | null>(firstMethod?.id ?? null);
   const [form, setForm] = useState<AddressForm>(EMPTY_FORM);
 
   if (!isOpen) return null;
@@ -134,7 +160,12 @@ export function ShippingDrawer({ isOpen, items, onClose, onReviewToCheckout }: S
   }
 
   function handleConfirmShipping() {
-    if (pendingMethodId) setShippingMethodId(pendingMethodId);
+    const confirmedId = pendingMethodId ?? shippingMethodId;
+    if (confirmedId) {
+      setShippingMethodId(confirmedId);
+      const method = MOCK_SHIPPING_METHODS.find((m) => m.id === confirmedId);
+      if (method) onShippingCostChange?.(method.price);
+    }
     setView("main");
   }
 
@@ -142,18 +173,15 @@ export function ShippingDrawer({ isOpen, items, onClose, onReviewToCheckout }: S
   if (view === "add-address") {
     const isFormValid = !!(form.firstName && form.lastName && form.streetName && form.city && form.country && form.postalCode && form.phone);
     return (
-      <DrawerShell>
+      <DrawerShell onBackdropClick={onClose}>
         <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-          {/* Header */}
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "20px 24px", borderBottom: "1px solid var(--cim-border-subtle,#eaebeb)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "20px 16px", borderBottom: "1px solid var(--cim-border-subtle,#eaebeb)" }}>
             <button onClick={() => setView("main")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: "4px", color: "var(--cim-fg-base)" }}>
               <IconArrowLeft />
             </button>
-            <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: 0, color: "var(--cim-fg-base)" }}>Add New Address</h2>
+            <h2 style={{ fontSize: "1.125rem", fontWeight: 600, margin: 0, color: "var(--cim-fg-base)" }}>Add New Address</h2>
           </div>
-
-          {/* Form */}
-          <div style={{ flex: 1, overflowY: "auto", padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div style={{ flex: 1, overflowY: "auto", padding: "24px 16px", display: "flex", flexDirection: "column", gap: "16px" }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
               <TextField label="First Name" isRequired value={form.firstName} onChange={(v) => setForm((f) => ({ ...f, firstName: v }))} />
               <TextField label="Last Name" isRequired value={form.lastName} onChange={(v) => setForm((f) => ({ ...f, lastName: v }))} />
@@ -164,33 +192,18 @@ export function ShippingDrawer({ isOpen, items, onClose, onReviewToCheckout }: S
             <TextField label="City / Town" isRequired value={form.city} onChange={(v) => setForm((f) => ({ ...f, city: v }))} />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
               <TextField label="Country" isRequired value={form.country} onChange={(v) => setForm((f) => ({ ...f, country: v }))} />
-              <TextField label="State / Province" isRequired value={form.state} onChange={(v) => setForm((f) => ({ ...f, state: v }))} />
+              <TextField label="State / Province" value={form.state} onChange={(v) => setForm((f) => ({ ...f, state: v }))} />
             </div>
             <TextField label="Postal Code" isRequired value={form.postalCode} onChange={(v) => setForm((f) => ({ ...f, postalCode: v }))} />
             <TextField label="Phone" isRequired value={form.phone} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} />
-
             <div style={{ display: "flex", flexDirection: "column", gap: "8px", paddingTop: "8px" }}>
-              <Checkbox isSelected={form.defaultShipping} onChange={(v) => setForm((f) => ({ ...f, defaultShipping: v }))}>
-                Set as default shipping address
-              </Checkbox>
-              <Checkbox isSelected={form.defaultBilling} onChange={(v) => setForm((f) => ({ ...f, defaultBilling: v }))}>
-                Set as default billing address
-              </Checkbox>
+              <Checkbox isSelected={form.defaultShipping} onChange={(v) => setForm((f) => ({ ...f, defaultShipping: v }))}>Set as default shipping address</Checkbox>
+              <Checkbox isSelected={form.defaultBilling} onChange={(v) => setForm((f) => ({ ...f, defaultBilling: v }))}>Set as default billing address</Checkbox>
             </div>
           </div>
-
-          {/* Footer */}
-          <div style={{ display: "flex", gap: "0", borderTop: "1px solid var(--cim-border-subtle,#eaebeb)" }}>
-            <button onClick={() => setView("main")} style={{ flex: 1, height: "56px", background: "none", border: "none", cursor: "pointer", fontSize: "1rem", fontWeight: 600, color: "var(--cim-fg-accent,#007798)" }}>
-              Cancel
-            </button>
-            <button
-              onClick={handleAddAddress}
-              disabled={!isFormValid}
-              style={{ flex: 1, height: "56px", background: "none", border: "none", cursor: isFormValid ? "pointer" : "not-allowed", fontSize: "1rem", fontWeight: 600, color: isFormValid ? "var(--cim-fg-accent,#007798)" : "var(--cim-fg-muted,#94979b)", borderLeft: "1px solid var(--cim-border-subtle,#eaebeb)" }}
-            >
-              Confirm
-            </button>
+          <div style={{ padding: "16px", borderTop: "1px solid var(--cim-border-subtle,#eaebeb)", display: "flex", gap: "12px" }}>
+            <Button variant="secondary" onPress={() => setView("main")} UNSAFE_style={{ flex: 1 }}>Cancel</Button>
+            <Button variant="primary" isDisabled={!isFormValid} onPress={handleAddAddress} UNSAFE_style={{ flex: 1 }}>Confirm</Button>
           </div>
         </div>
       </DrawerShell>
@@ -200,18 +213,15 @@ export function ShippingDrawer({ isOpen, items, onClose, onReviewToCheckout }: S
   // ── Select Shipping Speed view ─────────────────────────────────────────────
   if (view === "select-shipping") {
     return (
-      <DrawerShell>
+      <DrawerShell onBackdropClick={onClose}>
         <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-          {/* Header */}
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "20px 24px", borderBottom: "1px solid var(--cim-border-subtle,#eaebeb)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "20px 16px", borderBottom: "1px solid var(--cim-border-subtle,#eaebeb)" }}>
             <button onClick={() => setView("main")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: "4px", color: "var(--cim-fg-base)" }}>
               <IconArrowLeft />
             </button>
-            <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: 0, color: "var(--cim-fg-base)" }}>Select Shipping Speed</h2>
+            <h2 style={{ fontSize: "1.125rem", fontWeight: 600, margin: 0, color: "var(--cim-fg-base)" }}>Select Shipping Speed</h2>
           </div>
-
-          {/* Method list */}
-          <div style={{ flex: 1, overflowY: "auto", padding: "24px", display: "flex", flexDirection: "column", gap: "12px" }}>
+          <div style={{ flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
             {MOCK_SHIPPING_METHODS.map((method) => {
               const isSelected = (pendingMethodId ?? shippingMethodId) === method.id;
               const isExpanded = expandedMethodId === method.id || isSelected;
@@ -221,13 +231,10 @@ export function ShippingDrawer({ isOpen, items, onClose, onReviewToCheckout }: S
                   onClick={() => { setPendingMethodId(method.id); setExpandedMethodId(method.id); }}
                   style={{
                     border: `1.5px solid ${isSelected ? "var(--cim-fg-accent,#007798)" : "var(--cim-border-base,#dadcdd)"}`,
-                    borderRadius: "6px",
-                    overflow: "hidden",
-                    cursor: "pointer",
+                    borderRadius: "6px", overflow: "hidden", cursor: "pointer",
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "14px 16px" }}>
-                    {/* Radio */}
                     <div style={{
                       width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0,
                       border: `2px solid ${isSelected ? "var(--cim-fg-accent,#007798)" : "var(--cim-border-base,#dadcdd)"}`,
@@ -236,24 +243,17 @@ export function ShippingDrawer({ isOpen, items, onClose, onReviewToCheckout }: S
                     }}>
                       {isSelected && <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "white" }} />}
                     </div>
-                    {/* Name */}
                     <span style={{ flex: 1, fontWeight: 600, fontSize: "1rem", color: "var(--cim-fg-base)" }}>{method.name}</span>
-                    {/* Price */}
                     <div style={{ textAlign: "right", flexShrink: 0 }}>
                       {method.price === 0 ? (
                         <span style={{ fontSize: "0.875rem" }}>
-                          <span style={{ color: "var(--cim-fg-critical,#d10023)", textDecoration: "line-through", marginRight: "6px" }}>
-                            {method.originalPrice?.toFixed(2)} USD
-                          </span>
+                          <span style={{ color: "var(--cim-fg-critical,#d10023)", textDecoration: "line-through", marginRight: "6px" }}>{method.originalPrice?.toFixed(2)} USD</span>
                           <span style={{ fontWeight: 700, color: "var(--cim-fg-base)" }}>0.00 Free</span>
                         </span>
                       ) : (
-                        <span style={{ fontWeight: 700, fontSize: "1rem", color: "var(--cim-fg-base)" }}>
-                          {method.price.toFixed(2)} USD*
-                        </span>
+                        <span style={{ fontWeight: 700, fontSize: "1rem", color: "var(--cim-fg-base)" }}>{method.price.toFixed(2)} USD*</span>
                       )}
                     </div>
-                    {/* Expand toggle */}
                     <button
                       onClick={(e) => { e.stopPropagation(); setExpandedMethodId(isExpanded ? null : method.id); }}
                       style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cim-fg-subtle)", padding: "2px", display: "flex" }}
@@ -263,16 +263,11 @@ export function ShippingDrawer({ isOpen, items, onClose, onReviewToCheckout }: S
                       </svg>
                     </button>
                   </div>
-                  {/* Expanded detail */}
                   {isExpanded && (
                     <div style={{ borderTop: "1px solid var(--cim-border-subtle,#eaebeb)", padding: "12px 16px 14px 46px", background: "var(--cim-bg-subtle,#f8f9fa)" }}>
-                      <p style={{ margin: "0 0 6px", fontSize: "0.875rem", color: "var(--cim-fg-base)" }}>
-                        Estimated arrival by {method.estimatedDeliveryLabel}
-                      </p>
+                      <p style={{ margin: "0 0 6px", fontSize: "0.875rem", color: "var(--cim-fg-base)" }}>Estimated arrival by {method.estimatedDeliveryLabel}</p>
                       {items.map((item) => (
-                        <p key={item.draftItemId} style={{ margin: 0, fontSize: "0.8125rem", color: "var(--cim-fg-subtle)" }}>
-                          {item.product.name} : {method.estimatedDeliveryLabel}
-                        </p>
+                        <p key={item.draftItemId} style={{ margin: 0, fontSize: "0.8125rem", color: "var(--cim-fg-subtle)" }}>{item.product.name}: {method.estimatedDeliveryLabel}</p>
                       ))}
                     </div>
                   )}
@@ -281,19 +276,272 @@ export function ShippingDrawer({ isOpen, items, onClose, onReviewToCheckout }: S
             })}
             <p style={{ fontSize: "0.75rem", color: "var(--cim-fg-muted,#94979b)", margin: "4px 0 0" }}>*Taxes excluded</p>
           </div>
+          <div style={{ padding: "16px 16px 24px", borderTop: "1px solid var(--cim-border-base,#dadcdd)", display: "flex", gap: "12px" }}>
+            <Button variant="secondary" onPress={() => setView("main")} UNSAFE_style={{ flex: 1 }}>Back</Button>
+            <Button variant="primary" isDisabled={!pendingMethodId && !shippingMethodId} onPress={handleConfirmShipping} UNSAFE_style={{ flex: 1 }}>Confirm shipping speed</Button>
+          </div>
+        </div>
+      </DrawerShell>
+    );
+  }
+
+  // ── Review to Checkout view ────────────────────────────────────────────────
+  if (view === "review") {
+    const summary = computeReviewSummary(items);
+    const totalDue = parseFloat((summary.subtotal + summary.totalTax + draftOrder.shippingEstimate).toFixed(2));
+    const itemCount = items.length;
+    const taxRate = items[0]?.product.taxRate ?? 8;
+
+    // Accessory sub-rows
+    const accessoryRows = items.flatMap((item) =>
+      (item.accessories ?? []).map((acc) => ({
+        label: `${acc.label} added (${acc.quantity})`,
+        total: parseFloat((acc.quantity * acc.unitPrice).toFixed(2)),
+      }))
+    );
+
+    return (
+      <DrawerShell onBackdropClick={onClose} width={620}>
+        <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+          {/* Header */}
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "20px 16px 16px", borderBottom: "1px solid var(--cim-border-subtle,#eaebeb)" }}>
+            <button
+              onClick={() => setView("main")}
+              style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: "4px", color: "var(--cim-fg-base)", borderRadius: "4px", flexShrink: 0 }}
+            >
+              <IconArrowLeft />
+            </button>
+            <h2 style={{ fontSize: "1.125rem", fontWeight: 600, margin: 0, color: "var(--cim-fg-base,#15191d)" }}>
+              Review to checkout
+            </h2>
+          </div>
+
+          {/* Tabs */}
+          <div style={{ display: "flex", borderBottom: "2px solid var(--cim-border-base,#dadcdd)", padding: "0 16px", gap: "4px" }}>
+            {(["order-details", "address-shipping"] as ReviewTab[]).map((tab) => {
+              const label = tab === "order-details" ? "Order details" : "Address & shipping speed";
+              const isActive = reviewTab === tab;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setReviewTab(tab)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: "12px 4px",
+                    fontSize: "0.9375rem",
+                    fontWeight: isActive ? 600 : 400,
+                    color: isActive ? "var(--cim-fg-accent,#007798)" : "var(--cim-fg-base,#15191d)",
+                    borderBottom: isActive ? "2px solid var(--cim-fg-accent,#007798)" : "2px solid transparent",
+                    marginBottom: "-2px",
+                    whiteSpace: "nowrap",
+                    marginRight: "16px",
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Body */}
+          <div style={{ flex: 1, overflowY: "auto", padding: "24px 16px", display: "flex", flexDirection: "column", gap: "20px" }}>
+
+            {/* ── ORDER DETAILS TAB ── */}
+            {reviewTab === "order-details" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <h3 style={{ margin: 0, fontSize: "1.125rem", fontWeight: 600, color: "var(--cim-fg-base,#15191d)" }}>
+                  Order details
+                </h3>
+                <div style={{
+                  border: "1px solid var(--cim-border-base,#dadcdd)",
+                  borderRadius: "6px",
+                  padding: "16px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                }}>
+                  <ReviewPriceRow
+                    label={`Total Price (${itemCount} item${itemCount !== 1 ? "s" : ""})`}
+                    value={`${summary.grossTotal.toFixed(2)} USD`}
+                  />
+                  <ReviewPriceRow
+                    label="Total Discount"
+                    value={`${summary.totalDiscount.toFixed(2)} USD`}
+                    accent={summary.totalDiscount > 0}
+                  />
+                  {summary.accessoriesTotal > 0 && (
+                    <>
+                      <ReviewPriceRow
+                        label="Total charges applied"
+                        value={`${summary.accessoriesTotal.toFixed(2)} USD`}
+                      />
+                      {accessoryRows.map((row, i) => (
+                        <ReviewPriceRow key={i} label={row.label} value={`${row.total.toFixed(2)} USD`} indent />
+                      ))}
+                    </>
+                  )}
+                  <ReviewPriceRow
+                    label="Subtotal"
+                    value={`${summary.subtotal.toFixed(2)} USD`}
+                  />
+                  <ReviewPriceRow
+                    label={`Tax (${taxRate}%)`}
+                    value={`${summary.totalTax.toFixed(2)} USD`}
+                    subtle
+                  />
+                  <ReviewPriceRow
+                    label="Shipping cost"
+                    value={`${draftOrder.shippingEstimate.toFixed(2)} USD`}
+                    subtle={draftOrder.shippingEstimate === 0}
+                  />
+
+                  {/* Divider */}
+                  <div style={{ height: "1px", background: "var(--cim-border-base,#dadcdd)", margin: "4px 0" }} />
+
+                  {/* Total due */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                    <span style={{ fontSize: "1.125rem", fontWeight: 600, color: "var(--cim-fg-base,#15191d)" }}>
+                      Total due
+                    </span>
+                    <span style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--cim-fg-base,#15191d)" }}>
+                      {totalDue.toFixed(2)} USD
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── ADDRESS & SHIPPING TAB ── */}
+            {reviewTab === "address-shipping" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <h3 style={{ margin: 0, fontSize: "1.125rem", fontWeight: 600, color: "var(--cim-fg-base,#15191d)" }}>
+                  Address &amp; shipping speed
+                </h3>
+
+                {/* Combined address + method card */}
+                <div style={{
+                  border: "1px solid var(--cim-border-base,#dadcdd)",
+                  borderRadius: "6px",
+                  overflow: "hidden",
+                }}>
+                  {/* Shipping address */}
+                  <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <span style={{ fontSize: "1.125rem", fontWeight: 600, color: "var(--cim-fg-base,#15191d)" }}>
+                      Shipping address
+                    </span>
+                    {shippingAddress ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ fontWeight: 600, fontSize: "1rem", color: "var(--cim-fg-base)" }}>{shippingAddress.name}</span>
+                          {shippingAddress.isDefault && <DefaultBadge />}
+                        </div>
+                        {shippingAddress.company && (
+                          <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--cim-fg-base)" }}>{shippingAddress.company}</span>
+                        )}
+                        {shippingAddress.lines.map((line, i) => (
+                          <span key={i} style={{ fontSize: "0.875rem", color: "var(--cim-fg-base)" }}>{line}</span>
+                        ))}
+                        <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base)" }}>{shippingAddress.phone}</span>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-muted,#94979b)" }}>No shipping address selected</span>
+                    )}
+                  </div>
+
+                  {/* Divider */}
+                  <div style={{ height: "1px", background: "var(--cim-border-base,#dadcdd)" }} />
+
+                  {/* Shipping method */}
+                  <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
+                    <span style={{ fontSize: "1.125rem", fontWeight: 600, color: "var(--cim-fg-base,#15191d)" }}>
+                      Shipping method
+                    </span>
+                    {selectedMethod ? (
+                      <div style={{
+                        background: "#f0fdf4",
+                        border: "1px solid #86efac",
+                        borderRadius: "6px",
+                        padding: "12px 16px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "8px",
+                      }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                          <span style={{ display: "flex", flexShrink: 0, color: "var(--cim-fg-base)" }}>
+                            <IconDeliveryTruck />
+                          </span>
+                          <span style={{ flex: 1, fontWeight: 600, fontSize: "1rem", color: "var(--cim-fg-base)" }}>
+                            {selectedMethod.name}
+                          </span>
+                          <div style={{ textAlign: "right", flexShrink: 0 }}>
+                            <div style={{ fontWeight: 700, fontSize: "1rem", color: "var(--cim-fg-base)" }}>
+                              {selectedMethod.price.toFixed(2)} USD
+                            </div>
+                            <div style={{ fontSize: "0.75rem", color: "var(--cim-fg-subtle,#5f6469)" }}>Taxes excluded</div>
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base,#15191d)" }}>
+                            Estimated arrival by {selectedMethod.estimatedDeliveryLabel}
+                          </span>
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+                            <path d="M3 6l5 5 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </div>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-muted,#94979b)" }}>No shipping method selected</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Billing address card */}
+                <div style={{
+                  border: "1px solid var(--cim-border-base,#dadcdd)",
+                  borderRadius: "6px",
+                  padding: "16px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                }}>
+                  <span style={{ fontSize: "1.125rem", fontWeight: 600, color: "var(--cim-fg-base,#15191d)" }}>
+                    Billing address
+                  </span>
+                  {billingSameAsShipping ? (
+                    <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-subtle,#5f6469)" }}>
+                      Billing address is same as shipping address
+                    </span>
+                  ) : billingAddress ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <span style={{ fontWeight: 600, fontSize: "1rem", color: "var(--cim-fg-base)" }}>{billingAddress.name}</span>
+                      {billingAddress.lines.map((line, i) => (
+                        <span key={i} style={{ fontSize: "0.875rem", color: "var(--cim-fg-base)" }}>{line}</span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-muted,#94979b)" }}>No billing address selected</span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Footer */}
-          <div style={{ display: "flex", gap: "0", borderTop: "1px solid var(--cim-border-subtle,#eaebeb)" }}>
-            <button onClick={() => setView("main")} style={{ flex: 1, height: "56px", background: "none", border: "none", cursor: "pointer", fontSize: "1rem", fontWeight: 600, color: "var(--cim-fg-accent,#007798)" }}>
-              Back
-            </button>
-            <button
-              onClick={handleConfirmShipping}
-              disabled={!pendingMethodId && !shippingMethodId}
-              style={{ flex: 1, height: "56px", background: (pendingMethodId ?? shippingMethodId) ? "var(--cim-fg-accent,#007798)" : "var(--cim-bg-subtle,#f8f9fa)", border: "none", cursor: (pendingMethodId ?? shippingMethodId) ? "pointer" : "not-allowed", fontSize: "1rem", fontWeight: 600, color: (pendingMethodId ?? shippingMethodId) ? "white" : "var(--cim-fg-muted,#94979b)" }}
-            >
-              Confirm shipping speed
-            </button>
+          <div style={{
+            background: "white",
+            borderTop: "1px solid var(--cim-border-base,#dadcdd)",
+            padding: "16px 16px 24px",
+            display: "flex",
+            gap: "12px",
+          }}>
+            <Button variant="secondary" onPress={onClose} UNSAFE_style={{ flex: 1 }}>
+              Cancel
+            </Button>
+            <Button variant="primary" onPress={onReviewToCheckout} UNSAFE_style={{ flex: 1 }}>
+              Pay to Checkout
+            </Button>
           </div>
         </div>
       </DrawerShell>
@@ -302,164 +550,275 @@ export function ShippingDrawer({ isOpen, items, onClose, onReviewToCheckout }: S
 
   // ── Main view ──────────────────────────────────────────────────────────────
   return (
-    <DrawerShell>
+    <DrawerShell onBackdropClick={onClose}>
       <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 24px", borderBottom: "1px solid var(--cim-border-subtle,#eaebeb)" }}>
-          <div>
-            <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: "0 0 2px", color: "var(--cim-fg-base)" }}>Address &amp; Shipping Method</h2>
-            <p style={{ margin: 0, fontSize: "0.8125rem", color: "var(--cim-fg-subtle)" }}>Shipping address changes can impact shipping speed</p>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <Button variant="secondary" size="small" onPress={() => openAddAddress("shipping")}>
-              Add New Address
-            </Button>
-            <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: "4px", color: "var(--cim-fg-base)" }}>
-              <IconCloseBold />
-            </button>
-          </div>
+
+        {/* Header — slim title bar */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "24px 16px 16px 16px",
+        }}>
+          <h2 style={{ fontSize: "1.125rem", fontWeight: 600, margin: 0, color: "var(--cim-fg-base,#15191d)", lineHeight: "24px" }}>
+            Address &amp; Shipping Method
+          </h2>
+          <button
+            onClick={onClose}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "32px", height: "32px", background: "none", border: "none", cursor: "pointer", borderRadius: "4px", padding: "8px", color: "var(--cim-fg-base,#15191d)" }}
+            aria-label="Close"
+          >
+            <IconCloseBold />
+          </button>
         </div>
 
         {/* Body */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "24px", display: "flex", flexDirection: "column", gap: "24px" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
 
-          {/* Shipping address */}
-          <section style={{ display: "flex", flexDirection: "column", gap: "12px", paddingBottom: "24px", borderBottom: "1px solid var(--cim-border-subtle,#eaebeb)" }}>
-            <SectionTitle>Shipping address</SectionTitle>
-            {shippingAddress ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span style={{ fontWeight: 600, fontSize: "0.9375rem", color: "var(--cim-fg-base)" }}>{shippingAddress.name}</span>
-                  {shippingAddress.isDefault && <DefaultBadge />}
-                </div>
-                {shippingAddress.company && (
-                  <span style={{ fontWeight: 600, fontSize: "0.875rem", color: "var(--cim-fg-base)" }}>{shippingAddress.company}</span>
+          {/* Section header row */}
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "2px", minWidth: 0 }}>
+              <p style={{ margin: 0, fontSize: "1.25rem", fontWeight: 600, color: "var(--cim-fg-base,#15191d)", lineHeight: "28px" }}>
+                Address &amp; Shipping Method
+              </p>
+              <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--cim-fg-subtle,#5f6469)", lineHeight: "16px" }}>
+                Shipping address changes can impact shipping speed
+              </p>
+            </div>
+            <Button variant="secondary" size="small" onPress={() => openAddAddress("shipping")}>
+              Add New Address
+            </Button>
+          </div>
+
+          {/* Shipping address + Shipping method card (single bordered card) */}
+          <div style={{
+            background: "white",
+            border: "1px solid var(--cim-border-base,#dadcdd)",
+            borderRadius: "6px",
+            padding: "12px 16px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px",
+          }}>
+            {/* Shipping address sub-section */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", height: "40px" }}>
+                <span style={{ fontSize: "1.125rem", fontWeight: 600, color: "var(--cim-fg-base,#15191d)", lineHeight: "24px" }}>
+                  Shipping address
+                </span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                {shippingAddress ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span style={{ fontWeight: 600, fontSize: "1rem", color: "var(--cim-fg-base)" }}>{shippingAddress.name}</span>
+                      {shippingAddress.isDefault && <DefaultBadge />}
+                    </div>
+                    {shippingAddress.company && <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base)" }}>{shippingAddress.company}</span>}
+                    {shippingAddress.lines.map((line, i) => (
+                      <span key={i} style={{ fontSize: "0.875rem", color: "var(--cim-fg-base)" }}>{line}</span>
+                    ))}
+                    <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base)" }}>{shippingAddress.phone}</span>
+                    <div style={{ display: "flex", gap: "16px", marginTop: "4px" }}>
+                      <button onClick={() => openAddAddress("shipping")} style={linkBtnStyle}>Edit</button>
+                      <button onClick={() => openAddAddress("shipping")} style={linkBtnStyle}>Change shipping address</button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <p style={{ margin: 0, fontSize: "1rem", color: "var(--cim-fg-base,#15191d)", lineHeight: "24px" }}>
+                      This customer seems to have no address
+                    </p>
+                    <button onClick={() => openAddAddress("shipping")} style={accentLinkStyle}>
+                      Add New Address
+                    </button>
+                  </>
                 )}
-                {shippingAddress.lines.map((line, i) => (
-                  <span key={i} style={{ fontSize: "0.875rem", color: "var(--cim-fg-base)" }}>{line}</span>
-                ))}
-                <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base)" }}>{shippingAddress.phone}</span>
-                <div style={{ display: "flex", gap: "16px", marginTop: "4px" }}>
-                  <LinkBtn onClick={() => openAddAddress("shipping")}>Edit</LinkBtn>
-                  <LinkBtn onClick={() => openAddAddress("shipping")}>Change shipping address</LinkBtn>
-                </div>
               </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-subtle)" }}>This customer seems to have no address</span>
-                <LinkBtn onClick={() => openAddAddress("shipping")}>Add New Address</LinkBtn>
-              </div>
-            )}
-          </section>
+            </div>
 
-          {/* Shipping method */}
-          <section style={{ display: "flex", flexDirection: "column", gap: "12px", paddingBottom: "24px", borderBottom: "1px solid var(--cim-border-subtle,#eaebeb)" }}>
-            <SectionTitle>Shipping method</SectionTitle>
-            {!shippingAddressId ? (
-              <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "16px", background: "var(--cim-bg-subtle,#f8f9fa)", borderRadius: "6px" }}>
-                <TruckIcon />
-                <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-subtle)" }}>Shipping speed can be selected after a shipping address has been entered</span>
-              </div>
-            ) : selectedMethod ? (
-              <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: "6px", padding: "14px 16px", display: "flex", flexDirection: "column", gap: "6px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                  <span style={{ fontWeight: 700, fontSize: "1rem", color: "var(--cim-fg-base)" }}>{selectedMethod.name}</span>
-                  <div style={{ textAlign: "right" }}>
-                    <span style={{ fontWeight: 700, fontSize: "1rem", color: "var(--cim-fg-base)" }}>
-                      USD {selectedMethod.price === 0 ? "0.00" : selectedMethod.price.toFixed(2)}
+            {/* Divider */}
+            <div style={{ height: "1px", background: "var(--cim-border-base,#dadcdd)", margin: "0 -16px" }} />
+
+            {/* Shipping method sub-section */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <span style={{ fontSize: "1.125rem", fontWeight: 600, color: "var(--cim-fg-base,#15191d)", lineHeight: "24px" }}>
+                Shipping method
+              </span>
+              {!shippingAddressId ? (
+                <div style={{
+                  background: "var(--cim-bg-subtle,#f8f9fa)",
+                  borderRadius: "6px",
+                  padding: "16px",
+                  display: "flex",
+                  gap: "16px",
+                  alignItems: "center",
+                }}>
+                  <span style={{ display: "flex", flexShrink: 0, color: "var(--cim-fg-subtle,#5f6469)" }}>
+                    <IconDeliveryTruck />
+                  </span>
+                  <p style={{ margin: 0, fontSize: "1rem", color: "var(--cim-fg-base,#15191d)", lineHeight: "24px" }}>
+                    Shipping speed can be selected after a shipping address has been entered
+                  </p>
+                </div>
+              ) : selectedMethod ? (
+                <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: "6px", overflow: "hidden" }}>
+                  {/* Method header row */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px" }}>
+                    <span style={{ display: "flex", flexShrink: 0, color: "var(--cim-fg-base)" }}><IconDeliveryTruck /></span>
+                    <span style={{ flex: 1, fontWeight: 600, fontSize: "1rem", color: "var(--cim-fg-base)" }}>{selectedMethod.name}</span>
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: "1rem", color: "var(--cim-fg-base)" }}>
+                        USD {selectedMethod.price === 0 ? "0.00" : selectedMethod.price.toFixed(2)}
+                      </div>
+                      <div style={{ fontSize: "0.75rem", color: "var(--cim-fg-subtle,#5f6469)" }}>Taxes excluded</div>
+                    </div>
+                  </div>
+                  {/* Estimated arrival + chevron */}
+                  <div
+                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px 10px", cursor: "pointer" }}
+                    onClick={() => setExpandedMethodId(expandedMethodId === selectedMethod.id ? null : selectedMethod.id)}
+                  >
+                    <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base,#15191d)" }}>
+                      Estimated arrival by {selectedMethod.estimatedDeliveryLabel}
                     </span>
-                    <div style={{ fontSize: "0.75rem", color: "var(--cim-fg-subtle)" }}>Taxes excluded</div>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, color: "var(--cim-fg-subtle)" }}>
+                      <path d={expandedMethodId === selectedMethod.id ? "M3 10l5-5 5 5" : "M3 6l5 5 5-5"} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                  {/* Expanded: item delivery lines + change link */}
+                  {expandedMethodId === selectedMethod.id && (
+                    <div style={{ borderTop: "1px solid #86efac", padding: "10px 16px 14px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                      {items.map((item) => (
+                        <p key={item.draftItemId} style={{ margin: 0, fontSize: "0.875rem", color: "var(--cim-fg-base,#15191d)" }}>
+                          {item.product.name}: {selectedMethod.estimatedDeliveryLabel}
+                        </p>
+                      ))}
+                      <button onClick={() => { setPendingMethodId(shippingMethodId); setView("select-shipping"); }} style={linkBtnStyle}>
+                        Change shipping method
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <div style={{ background: "var(--cim-bg-subtle,#f8f9fa)", borderRadius: "6px", padding: "16px", display: "flex", gap: "16px", alignItems: "center" }}>
+                    <span style={{ display: "flex", flexShrink: 0, color: "var(--cim-fg-subtle,#5f6469)" }}><IconDeliveryTruck /></span>
+                    <p style={{ margin: 0, fontSize: "1rem", color: "var(--cim-fg-base,#15191d)", lineHeight: "24px" }}>No shipping method selected</p>
+                  </div>
+                  <button onClick={() => { setPendingMethodId(null); setView("select-shipping"); }} style={linkBtnStyle}>Select shipping method</button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Billing address card */}
+          <div style={{
+            background: "white",
+            border: "1px solid var(--cim-border-base,#dadcdd)",
+            borderRadius: "6px",
+            padding: "12px 16px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "8px",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", height: "40px" }}>
+              <span style={{ fontSize: "1.125rem", fontWeight: 600, color: "var(--cim-fg-base,#15191d)", lineHeight: "24px" }}>
+                Billing address
+              </span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              {billingAddress ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-subtle)" }}>Billing address is same as shipping address</span>
+                  <div style={{ display: "flex", gap: "16px", marginTop: "2px" }}>
+                    <button onClick={() => openAddAddress("billing")} style={linkBtnStyle}>Edit</button>
+                    <button onClick={() => openAddAddress("billing")} style={linkBtnStyle}>Change billing address</button>
                   </div>
                 </div>
-                <p style={{ margin: "4px 0 2px", fontSize: "0.875rem", color: "var(--cim-fg-subtle)" }}>
-                  Estimated arrival by {selectedMethod.estimatedDeliveryLabel}
-                </p>
-                {items.map((item) => (
-                  <p key={item.draftItemId} style={{ margin: 0, fontSize: "0.8125rem", color: "var(--cim-fg-subtle)" }}>
-                    {item.product.name}: {selectedMethod.estimatedDeliveryLabel}
+              ) : (
+                <>
+                  <p style={{ margin: 0, fontSize: "1rem", color: "var(--cim-fg-base,#15191d)", lineHeight: "24px" }}>
+                    This customer seems to have no address
                   </p>
-                ))}
-                <LinkBtn onClick={() => { setPendingMethodId(shippingMethodId); setView("select-shipping"); }}>
-                  Change shipping method
-                </LinkBtn>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "16px", background: "var(--cim-bg-subtle,#f8f9fa)", borderRadius: "6px" }}>
-                  <TruckIcon />
-                  <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-subtle)" }}>No Shipping method selected</span>
-                </div>
-                <LinkBtn onClick={() => { setPendingMethodId(null); setView("select-shipping"); }}>Select shipping method</LinkBtn>
-              </div>
-            )}
-          </section>
-
-          {/* Billing address */}
-          <section style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            <SectionTitle>Billing address</SectionTitle>
-            {billingAddress ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-subtle)" }}>Billing address is same as shipping address</span>
-                <div style={{ display: "flex", gap: "16px", marginTop: "2px" }}>
-                  <LinkBtn onClick={() => openAddAddress("billing")}>Edit</LinkBtn>
-                  <LinkBtn onClick={() => openAddAddress("billing")}>Change billing address</LinkBtn>
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-subtle)" }}>This customer seems to have no address</span>
-                <LinkBtn onClick={() => openAddAddress("billing")}>Add New Address</LinkBtn>
-              </div>
-            )}
-          </section>
+                  <button onClick={() => openAddAddress("billing")} style={accentLinkStyle}>
+                    Add New Address
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Footer */}
-        <div style={{ borderTop: "1px solid var(--cim-border-subtle,#eaebeb)", display: "flex", flexDirection: "column", gap: "0" }}>
-          <button
-            style={{ height: "56px", background: "none", border: "none", cursor: "pointer", fontSize: "1rem", fontWeight: 600, color: "var(--cim-fg-accent,#007798)", borderBottom: "1px solid var(--cim-border-subtle,#eaebeb)" }}
-          >
-            Confirm and Save Changes
-          </button>
-          <button
-            onClick={canReview ? onReviewToCheckout : undefined}
-            disabled={!canReview}
-            style={{
-              height: "56px",
-              background: canReview ? "var(--cim-fg-accent,#007798)" : "var(--cim-bg-subtle,#f8f9fa)",
-              border: "none",
-              cursor: canReview ? "pointer" : "not-allowed",
-              fontSize: "1rem",
-              fontWeight: 600,
-              color: canReview ? "white" : "var(--cim-fg-muted,#94979b)",
+        <div style={{
+          background: "white",
+          borderTop: "1px solid var(--cim-border-base,#dadcdd)",
+          padding: "16px 16px 24px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "8px",
+        }}>
+          <Button
+            variant="secondary"
+            UNSAFE_style={{ width: "100%" }}
+            onPress={() => {
+              if (shippingMethodId) {
+                const method = MOCK_SHIPPING_METHODS.find((m) => m.id === shippingMethodId);
+                if (method) onShippingCostChange?.(method.price);
+              }
+              onClose();
             }}
           >
+            Confirm and Save Changes
+          </Button>
+          <Button
+            variant="primary"
+            isDisabled={!canReview}
+            onPress={canReview ? () => setView("review") : undefined}
+            UNSAFE_style={{ width: "100%" }}
+          >
             Review to checkout
-          </button>
+          </Button>
         </div>
       </div>
     </DrawerShell>
   );
 }
 
-function DrawerShell({ children }: { children: React.ReactNode }) {
+const linkBtnStyle: React.CSSProperties = {
+  background: "none", border: "none", padding: 0, cursor: "pointer",
+  fontSize: "0.875rem", color: "var(--cim-fg-accent,#007798)", textDecoration: "underline",
+};
+
+const accentLinkStyle: React.CSSProperties = {
+  background: "none", border: "none", padding: 0, cursor: "pointer",
+  fontSize: "1rem", color: "var(--cim-fg-accent,#007798)",
+  textDecoration: "underline", textAlign: "left",
+  lineHeight: "24px",
+};
+
+function DrawerShell({ children, onBackdropClick, width = 480 }: {
+  children: React.ReactNode;
+  onBackdropClick?: () => void;
+  width?: number;
+}) {
   return (
     <>
-      {/* Backdrop */}
-      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200 }} />
-      {/* Drawer */}
+      <div
+        style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200 }}
+        onClick={onBackdropClick}
+      />
       <div style={{
         position: "fixed",
         top: 0,
         right: 0,
         bottom: 0,
-        width: "520px",
+        width: `${width}px`,
         maxWidth: "100vw",
         background: "white",
         zIndex: 201,
         display: "flex",
         flexDirection: "column",
-        boxShadow: "-4px 0 24px rgba(0,0,0,0.12)",
+        boxShadow: "0px 2px 8px rgba(0,0,0,0.12), 0px 8px 16px rgba(0,0,0,0.11), 0px 16px 24px rgba(0,0,0,0.10), 0px 16px 32px rgba(0,0,0,0.09), 0px 24px 48px rgba(0,0,0,0.08)",
       }}>
         {children}
       </div>

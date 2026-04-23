@@ -3,35 +3,17 @@
 import { useState } from "react";
 import {
   Checkbox, Button, Disclosure, AlertDialog, AlertDialogBody, AlertDialogActions,
-  Select, SelectItem,
+  TextField,
 } from "@cimpress-ui/react";
 import {
   IconTrash,
   IconPencil,
-  IconDuplicate,
+  IconMenuMoreVertical,
   IconCheckCircleFill,
   IconInfoCircle,
 } from "@cimpress-ui/react/icons";
-import type { QuantityPricingTier } from "@/lib/types";
 import type { DraftOrderItem } from "@/lib/types";
 import { Toast } from "@/components/Toast";
-
-function resolvePricingTier(tiers: QuantityPricingTier[], qty: number): number {
-  for (const tier of [...tiers].reverse()) {
-    if (qty >= tier.minQty) return tier.unitPrice;
-  }
-  return tiers[0]?.unitPrice ?? 0;
-}
-
-function generateQuantityOptions(min: number, max: number, tiers: QuantityPricingTier[]): number[] {
-  const opts = new Set<number>([min, max]);
-  tiers.forEach((t) => { opts.add(t.minQty); if (t.maxQty) opts.add(t.maxQty); });
-  if (max - min <= 500) {
-    const step = Math.ceil((max - min) / 6);
-    for (let q = min; q <= max; q += step) opts.add(q);
-  }
-  return [...opts].filter((q) => q >= min && q <= max).sort((a, b) => a - b);
-}
 
 interface OrderItemsListProps {
   items: DraftOrderItem[];
@@ -57,7 +39,7 @@ const iconBtnStyle: React.CSSProperties = {
 export function OrderItemsList({ items, onEdit, onRemove, onDuplicate, onQuantityChange }: OrderItemsListProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [removingItemId, setRemovingItemId] = useState<string | null>(null);
-  const [showDuplicateToast, setShowDuplicateToast] = useState(false);
+  const [removingAccessory, setRemovingAccessory] = useState<{ itemId: string; accessoryId: string } | null>(null);
 
   if (items.length === 0) return null;
 
@@ -90,15 +72,6 @@ export function OrderItemsList({ items, onEdit, onRemove, onDuplicate, onQuantit
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
-      {showDuplicateToast && (
-        <Toast
-          variant="success"
-          message="Item duplicated successfully"
-          onDismiss={() => setShowDuplicateToast(false)}
-          autoDismissMs={3000}
-        />
-      )}
-
       <AlertDialog
         title="Remove item"
         tone="critical"
@@ -127,6 +100,28 @@ export function OrderItemsList({ items, onEdit, onRemove, onDuplicate, onQuantit
           </Button>
         </AlertDialogActions>
       </AlertDialog>
+
+      <AlertDialog
+        title="Remove accessory"
+        tone="critical"
+        isOpen={removingAccessory !== null}
+        onOpenChange={(open) => { if (!open) setRemovingAccessory(null); }}
+      >
+        <AlertDialogBody>
+          Are you sure you want to remove this accessory from the item?
+        </AlertDialogBody>
+        <AlertDialogActions>
+          <Button variant="tertiary" onPress={() => setRemovingAccessory(null)}>Cancel</Button>
+          <Button
+            variant="primary"
+            tone="critical"
+            onPress={() => setRemovingAccessory(null)}
+          >
+            Remove
+          </Button>
+        </AlertDialogActions>
+      </AlertDialog>
+
       {/* Selection bar */}
       <div style={{
         background: "var(--cim-bg-subtle, #f8f9fa)",
@@ -193,11 +188,11 @@ export function OrderItemsList({ items, onEdit, onRemove, onDuplicate, onQuantit
                   <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
                     <button
                       style={iconBtnStyle}
-                      title="Duplicate"
-                      aria-label="Duplicate item"
-                      onClick={() => { onDuplicate(item.draftItemId); setShowDuplicateToast(true); }}
+                      title="More options"
+                      aria-label="More options"
+                      onClick={() => {}}
                     >
-                      <IconDuplicate />
+                      <IconMenuMoreVertical />
                     </button>
                     <button
                       style={iconBtnStyle}
@@ -218,7 +213,7 @@ export function OrderItemsList({ items, onEdit, onRemove, onDuplicate, onQuantit
                   </div>
                 </div>
 
-                {/* Body: image + details */}
+                {/* Body: image + quantity + item total */}
                 <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
                   {/* Product image + edit design link */}
                   <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -247,68 +242,67 @@ export function OrderItemsList({ items, onEdit, onRemove, onDuplicate, onQuantit
                       )}
                     </div>
                     <a
-                      href="#"
+                      href="https://pens.experience.cimpress.io/us/studio/?key=PRD-ZQO1BK4YA&productVersion=4&locale=en-us&selectedOptions=%7B%22Substrate%20Color%22%3A%22%23000000%22%7D&fullBleedElected=true&mpvId=portAuthorityWomensBrickJacketClone&qty=%7b%22S%22%3a0%2c%22M%22%3a0%2c%223XL%22%3a0%2c%22XS%22%3a5%7d"
+                      target="_blank"
+                      rel="noopener noreferrer"
                       style={{ fontSize: "1rem", color: "var(--cim-fg-accent, #007798)", textDecoration: "underline" }}
-                      onClick={(e) => { e.preventDefault(); onEdit(item.draftItemId); }}
                     >
                       Edit design
                     </a>
                   </div>
 
-                  {/* Quantity + item total */}
-                  <div style={{ flex: 1, display: "flex", alignItems: "flex-start", justifyContent: "space-between", minWidth: 0 }}>
-                    {/* Left: quantity */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <div style={{ width: "336px" }}>
-                          <Select
-                            label="Quantity"
-                            selectedKey={String(item.quantity)}
-                            onSelectionChange={(val) => onQuantityChange?.(item.draftItemId, Number(val))}
-                            isDisabled={!onQuantityChange}
-                          >
-                            {generateQuantityOptions(item.product.minOrderQty, item.product.maxOrderQty, item.product.pricingTiers).map((q) => {
-                              const tierPrice = resolvePricingTier(item.product.pricingTiers, q);
-                              const totalForQ = parseFloat((q * tierPrice).toFixed(2));
-                              return (
-                                <SelectItem key={String(q)} id={String(q)}>
-                                  {q} (USD {totalForQ.toFixed(2)}) {tierPrice.toFixed(2)} / unit
-                                </SelectItem>
-                              );
-                            })}
-                          </Select>
-                        </div>
-                        <div style={{ marginTop: "22px", color: "var(--cim-fg-subtle, #5f6469)", display: "flex" }}>
-                          <IconInfoCircle />
-                        </div>
+                  {/* Quantity field + stock (left) */}
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "8px", minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <TextField
+                          label="Quantity"
+                          value={String(item.quantity)}
+                          description={`Between ${item.product.minOrderQty} – ${item.product.maxOrderQty}`}
+                          validationState={
+                            item.quantity < item.product.minOrderQty || item.quantity > item.product.maxOrderQty
+                              ? "invalid" : undefined
+                          }
+                          onChange={(val) => {
+                            const n = parseInt(val, 10);
+                            if (!isNaN(n) && n >= item.product.minOrderQty && n <= item.product.maxOrderQty) {
+                              onQuantityChange?.(item.draftItemId, n);
+                            }
+                          }}
+                          inputMode="numeric"
+                          isDisabled={!onQuantityChange}
+                        />
                       </div>
-                      <span style={{ fontSize: "0.75rem", color: "var(--cim-fg-subtle, #5f6469)" }}>
-                        Quantity has to be between {item.product.minOrderQty} - {item.product.maxOrderQty}
-                      </span>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <span style={{ color: "var(--cim-fg-success, #15803d)", display: "flex" }}>
+                      <div style={{ marginTop: "20px", color: "var(--cim-fg-subtle, #5f6469)", display: "flex", flexShrink: 0 }}>
+                        <IconInfoCircle />
+                      </div>
+                    </div>
+                    {stockQty != null && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span style={{ color: "var(--cim-fg-success, #007e3f)", display: "flex" }}>
                           <IconCheckCircleFill />
                         </span>
                         <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)" }}>
-                          In stock{stockQty != null ? ` - ${stockQty}` : ""}
+                          In stock - {stockQty}
                         </span>
                       </div>
-                    </div>
+                    )}
+                  </div>
 
-                    {/* Right: item total */}
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "12px", flexShrink: 0 }}>
-                      <span style={{ fontSize: "1rem", fontWeight: 600, color: "var(--cim-fg-muted, #94979b)" }}>
-                        Item total
-                      </span>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
-                        <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #0b0f13)" }}>
-                          Tax USD {taxAmount.toFixed(2)}
-                        </span>
-                        <span style={{ fontSize: "1.125rem", fontWeight: 600, color: "var(--cim-fg-base, #0b0f13)" }}>
-                          USD {item.lineTotal.toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
+                  {/* Item total section (right-aligned) */}
+                  <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px", minWidth: "160px" }}>
+                    <span style={{ fontSize: "1rem", fontWeight: 600, color: "var(--cim-fg-subtle, #5f6469)" }}>
+                      Item total
+                    </span>
+                    <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)" }}>
+                      Unit Price {item.unitPrice.toFixed(2)} USD
+                    </span>
+                    <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)" }}>
+                      Tax {taxAmount.toFixed(2)} USD
+                    </span>
+                    <span style={{ fontSize: "1.125rem", fontWeight: 600, color: "var(--cim-fg-base, #15191d)", marginTop: "4px" }}>
+                      {item.lineTotal.toFixed(2)} USD
+                    </span>
                   </div>
                 </div>
               </div>
@@ -337,6 +331,36 @@ export function OrderItemsList({ items, onEdit, onRemove, onDuplicate, onQuantit
                   </div>
                 </Disclosure>
               </div>
+
+              {/* Accessories rows */}
+              {item.accessories && item.accessories.length > 0 && (
+                <div style={{ borderTop: "1px solid var(--cim-border-subtle, #eaebeb)" }}>
+                  {item.accessories.map((acc) => (
+                    <div
+                      key={acc.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "10px 16px",
+                        gap: "12px",
+                      }}
+                    >
+                      <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)" }}>
+                        {acc.quantity} {acc.label} added as an accessory (USD {(acc.quantity * acc.unitPrice).toFixed(2)})
+                      </span>
+                      <button
+                        style={{ ...iconBtnStyle, color: "var(--cim-fg-critical, #d10023)", flexShrink: 0 }}
+                        title="Remove accessory"
+                        aria-label={`Remove ${acc.label} accessory`}
+                        onClick={() => setRemovingAccessory({ itemId: item.draftItemId, accessoryId: acc.id })}
+                      >
+                        <IconTrash />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           );
         })}

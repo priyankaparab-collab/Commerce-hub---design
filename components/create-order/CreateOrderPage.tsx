@@ -11,6 +11,7 @@ import { ProductSearchPanel } from "./ProductSearchPanel";
 import { OrderSummaryPanel } from "./OrderSummaryPanel";
 import { ShippingDrawer } from "./ShippingDrawer";
 import { AddNewItemView } from "./AddNewItemView";
+import { StoreSelectionModal } from "./StoreSelectionModal";
 
 interface CreateOrderPageProps {
   customer: Customer;
@@ -18,7 +19,7 @@ interface CreateOrderPageProps {
 
 function computeTotals(items: DraftOrderItem[]): Pick<DraftOrder, "subtotal" | "taxEstimate" | "total"> {
   const subtotal = parseFloat(items.reduce((sum, item) => sum + item.lineTotal, 0).toFixed(2));
-  const taxEstimate = parseFloat((subtotal * 0.08).toFixed(2)); // 8% tax estimate
+  const taxEstimate = parseFloat((subtotal * 0.08).toFixed(2));
   const total = parseFloat((subtotal + taxEstimate).toFixed(2));
   return { subtotal, taxEstimate, total };
 }
@@ -30,12 +31,16 @@ export function CreateOrderPage({ customer }: CreateOrderPageProps) {
   const [items, setItems] = useState<DraftOrderItem[]>([]);
   const [editingItem, setEditingItem] = useState<DraftOrderItem | null>(null);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
-  const [confirmedOrderId, setConfirmedOrderId] = useState<string | null>(null);
 
-  // Order-level discount + override (managed in summary panel, mirrored here for draft order)
+  // Store selection — mandatory on entry
+  const [isStoreModalOpen, setIsStoreModalOpen] = useState(true);
+  const [selectedStore, setSelectedStore] = useState<string>("");
+
+  // Order-level discount + override
   const [orderDiscount, setOrderDiscount] = useState(0);
   const [discountCode, setDiscountCode] = useState("");
   const [overridePrice, setOverridePrice] = useState<number | null>(null);
+  const [shippingEstimate, setShippingEstimate] = useState(0);
 
   const { subtotal, taxEstimate, total } = computeTotals(items);
 
@@ -46,12 +51,12 @@ export function CreateOrderPage({ customer }: CreateOrderPageProps) {
     shopperId: customer.shopperId,
     items,
     subtotal,
-    shippingEstimate: 0, // filled in by checkout wizard
+    shippingEstimate,
     taxEstimate,
     orderDiscount,
     discountCode,
     overridePrice,
-    total: overridePrice !== null ? overridePrice : total,
+    total: overridePrice !== null ? overridePrice : parseFloat((total + shippingEstimate).toFixed(2)),
   };
 
   function handleAddToOrder(item: DraftOrderItem) {
@@ -107,14 +112,6 @@ export function CreateOrderPage({ customer }: CreateOrderPageProps) {
     setOverridePrice(price);
   }
 
-  function handlePlaceOrder() {
-    setIsCheckoutOpen(true);
-  }
-
-  function handleOrderConfirmed(orderId: string) {
-    setConfirmedOrderId(orderId);
-  }
-
   function handleAddNewItem() {
     setEditingItem(null);
     setView("add-item");
@@ -163,6 +160,20 @@ export function CreateOrderPage({ customer }: CreateOrderPageProps) {
               <Text as="span" variant="medium">{customer.name} ({customer.email})</Text>
               <div style={{ width: "1px", height: "16px", background: "var(--cim-border-subtle, #eaebeb)", flexShrink: 0 }} />
               <Text as="span" variant="medium">Shopper ID: <CopyInline variant="body">{customer.shopperId}</CopyInline></Text>
+              {selectedStore && (
+                <>
+                  <div style={{ width: "1px", height: "16px", background: "var(--cim-border-subtle, #eaebeb)", flexShrink: 0 }} />
+                  <Text as="span" variant="medium">
+                    Store: {selectedStore}
+                    <button
+                      onClick={() => setIsStoreModalOpen(true)}
+                      style={{ marginLeft: "6px", background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "0.875rem", color: "var(--cim-fg-accent, #007798)", textDecoration: "underline" }}
+                    >
+                      Change
+                    </button>
+                  </Text>
+                </>
+              )}
             </div>
           </div>
           <div style={{ display: "flex", gap: "12px", alignItems: "center", flexShrink: 0 }}>
@@ -193,7 +204,7 @@ export function CreateOrderPage({ customer }: CreateOrderPageProps) {
               draftOrder={draftOrder}
               onDiscountApplied={handleDiscountApplied}
               onOverridePriceChange={handleOverridePriceChange}
-              onPlaceOrder={handlePlaceOrder}
+              onPlaceOrder={() => setIsCheckoutOpen(true)}
             />
           </div>
         </div>
@@ -202,9 +213,25 @@ export function CreateOrderPage({ customer }: CreateOrderPageProps) {
       <ShippingDrawer
         isOpen={isCheckoutOpen}
         items={items}
+        draftOrder={draftOrder}
         onClose={() => setIsCheckoutOpen(false)}
         onReviewToCheckout={() => setIsCheckoutOpen(false)}
+        onShippingCostChange={setShippingEstimate}
       />
+
+      {isStoreModalOpen && (
+        <StoreSelectionModal
+          initialStore={selectedStore}
+          onConfirm={(store) => {
+            setSelectedStore(store);
+            setIsStoreModalOpen(false);
+          }}
+          onCancel={() => {
+            if (!selectedStore) router.back();
+            else setIsStoreModalOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }

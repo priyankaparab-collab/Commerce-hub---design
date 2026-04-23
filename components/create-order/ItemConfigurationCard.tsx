@@ -1,20 +1,35 @@
 "use client";
 
 import { useState, useEffect, forwardRef, useImperativeHandle, useRef, useCallback } from "react";
-import { Button, Select, SelectItem, FileTrigger, Disclosure } from "@cimpress-ui/react";
+import { Button, Select, SelectItem, TextField, Disclosure } from "@cimpress-ui/react";
 import { IconInfoCircle, IconCheckCircleFill } from "@cimpress-ui/react/icons";
 import type { ProductCatalogItem, DraftOrderItem, DraftOrderItemAttribute, QuantityPricingTier } from "@/lib/types";
+import { PreviousArtworkModal } from "./PreviousArtworkModal";
 
 const TAB_LABELS = [
   "Attributes",
   "Quantity",
   "Artwork",
   "Extra charges",
-  "Price override",
   "Add-ons",
   "Item price",
 ] as const;
 type TabLabel = (typeof TAB_LABELS)[number];
+
+export interface PriceBreakdown {
+  quantity: number;
+  basePrice: number;
+  discount: number;
+  chargesApplied: number;
+  extraChargesTotal: number;
+  selectedChargeLabel?: string;
+  selectedChargePrice?: number;
+  hasArtworkCharge: boolean;
+  subtotal: number;
+  taxRate: number;
+  tax: number;
+  totalDue: number;
+}
 
 interface ItemConfigurationCardProps {
   product: ProductCatalogItem;
@@ -22,6 +37,7 @@ interface ItemConfigurationCardProps {
   onAddToOrder: (item: DraftOrderItem) => void;
   onLineTotalChange?: (total: number) => void;
   onValidityChange?: (isValid: boolean) => void;
+  onPriceBreakdownChange?: (breakdown: PriceBreakdown) => void;
 }
 
 export interface ItemConfigurationCardHandle {
@@ -58,6 +74,20 @@ function generateQuantityOptions(min: number, max: number, tiers: QuantityPricin
   return [...opts].filter((q) => q >= min && q <= max).sort((a, b) => a - b);
 }
 
+function getContextualTiers(
+  tiers: QuantityPricingTier[],
+  qty: number
+): { slice: QuantityPricingTier[]; activeLocalIndex: number } {
+  const sorted = [...tiers].sort((a, b) => a.minQty - b.minQty);
+  let activeIndex = 0;
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    if (qty >= sorted[i].minQty) { activeIndex = i; break; }
+  }
+  const start = Math.max(0, activeIndex - 2);
+  const end = Math.min(sorted.length - 1, activeIndex + 2);
+  return { slice: sorted.slice(start, end + 1), activeLocalIndex: activeIndex - start };
+}
+
 function computeUpsell(product: ProductCatalogItem, qty: number, unlimited = false): UpsellSuggestion | null {
   const currentPrice = resolvePricingTier(product.pricingTiers, qty);
   const sortedTiers = [...product.pricingTiers].sort((a, b) => a.minQty - b.minQty);
@@ -67,6 +97,79 @@ function computeUpsell(product: ProductCatalogItem, qty: number, unlimited = fal
   if (!unlimited && additionalUnits > 55) return null;
   const additionalCost = parseFloat((nextTier.minQty * nextTier.unitPrice - qty * currentPrice).toFixed(2));
   return { suggestedQty: nextTier.minQty, additionalUnits, additionalCost };
+}
+
+// ── Contextual pricing grid ────────────────────────────────────────────────────
+function ContextualPricingGrid({
+  tiers,
+  quantity,
+  onSelect,
+}: {
+  tiers: QuantityPricingTier[];
+  quantity: number;
+  onSelect: (qty: number) => void;
+}) {
+  const { slice, activeLocalIndex } = getContextualTiers(tiers, quantity);
+  const sortedAll = [...tiers].sort((a, b) => a.minQty - b.minQty);
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: "0.8125rem", fontWeight: 600,
+    color: "var(--cim-fg-base, #15191d)", padding: "10px 12px",
+    background: "var(--cim-bg-subtle, #f8f9fa)",
+    borderRight: "1px solid var(--cim-border-base, #dadcdd)", whiteSpace: "nowrap",
+  };
+  const cell = (active: boolean): React.CSSProperties => ({
+    fontSize: "0.8125rem", color: "var(--cim-fg-base, #15191d)",
+    padding: "10px 12px", textAlign: "center",
+    background: active ? "var(--cim-bg-info-subtle, #e8f4f8)" : "white",
+    borderRight: "1px solid var(--cim-border-base, #dadcdd)", cursor: "pointer",
+  });
+  const rowBorder = "1px solid var(--cim-border-base, #dadcdd)";
+
+  return (
+    <div style={{ borderTop: "1px solid var(--cim-border-subtle, #eaebeb)", overflow: "hidden" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <tbody>
+          <tr style={{ borderBottom: rowBorder }}>
+            <td style={labelStyle}>Quantity</td>
+            {slice.map((tier, i) => (
+              <td key={i} style={cell(i === activeLocalIndex)} onClick={() => onSelect(tier.minQty)}>
+                <strong>{tier.minQty}</strong>
+              </td>
+            ))}
+          </tr>
+          <tr style={{ borderBottom: rowBorder }}>
+            <td style={labelStyle}>Unit Price</td>
+            {slice.map((tier, i) => (
+              <td key={i} style={cell(i === activeLocalIndex)} onClick={() => onSelect(tier.minQty)}>
+                {tier.unitPrice.toFixed(2)} USD
+              </td>
+            ))}
+          </tr>
+          <tr style={{ borderBottom: rowBorder }}>
+            <td style={labelStyle}>Subtotal</td>
+            {slice.map((tier, i) => (
+              <td key={i} style={{ ...cell(i === activeLocalIndex), fontWeight: 600 }} onClick={() => onSelect(tier.minQty)}>
+                {(tier.minQty * tier.unitPrice).toFixed(2)} USD
+              </td>
+            ))}
+          </tr>
+          <tr>
+            <td style={labelStyle}>Upsell Offer</td>
+            {slice.map((tier, i) => {
+              const globalIdx = sortedAll.findIndex((t) => t.minQty === tier.minQty);
+              const next = sortedAll[globalIdx + 1];
+              return (
+                <td key={i} style={{ ...cell(i === activeLocalIndex), color: "var(--cim-fg-subtle, #5f6469)" }} onClick={() => onSelect(tier.minQty)}>
+                  {next ? <>{next.minQty - tier.minQty}{" "}<span style={{ fontSize: "0.75rem" }}>@ {next.unitPrice.toFixed(2)}/each</span></> : "—"}
+                </td>
+              );
+            })}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 const sectionCard: React.CSSProperties = {
@@ -95,14 +198,13 @@ const radioInputStyle: React.CSSProperties = {
 };
 
 export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, ItemConfigurationCardProps>(
-  ({ product, initialValues, onAddToOrder, onLineTotalChange, onValidityChange }, ref) => {
+  ({ product, initialValues, onAddToOrder, onLineTotalChange, onValidityChange, onPriceBreakdownChange }, ref) => {
     const [activeTab, setActiveTab] = useState<TabLabel>("Attributes");
 
     const attributesRef = useRef<HTMLDivElement>(null);
     const quantityRef = useRef<HTMLDivElement>(null);
     const artworkRef = useRef<HTMLDivElement>(null);
     const extraChargesRef = useRef<HTMLDivElement>(null);
-    const priceOverrideRef = useRef<HTMLDivElement>(null);
     const addOnsRef = useRef<HTMLDivElement>(null);
     const itemPriceRef = useRef<HTMLDivElement>(null);
 
@@ -111,7 +213,6 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
       Quantity: quantityRef,
       Artwork: artworkRef,
       "Extra charges": extraChargesRef,
-      "Price override": priceOverrideRef,
       "Add-ons": addOnsRef,
       "Item price": itemPriceRef,
     };
@@ -129,15 +230,37 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
     const [upsellApplied, setUpsellApplied] = useState(false);
     const [preUpsellQuantity, setPreUpsellQuantity] = useState<number | null>(null);
     const [upsellInfo, setUpsellInfo] = useState<UpsellSuggestion | null>(null);
+    const [quantityInput, setQuantityInput] = useState<string>(initialValues?.quantity != null ? String(initialValues.quantity) : "");
     const [artworkOption, setArtworkOption] = useState<"new" | "customise">("new");
     const [artworkFileName, setArtworkFileName] = useState<string>(initialValues?.artworkFileName ?? "");
+    const [isArtworkModalOpen, setIsArtworkModalOpen] = useState(false);
+    const waitingForStudio = useRef(false);
+
+    useEffect(() => {
+      let wentHidden = false;
+      function handleVisibility() {
+        if (document.visibilityState === "hidden") {
+          wentHidden = true;
+        } else if (document.visibilityState === "visible" && wentHidden && waitingForStudio.current) {
+          wentHidden = false;
+          waitingForStudio.current = false;
+          setArtworkFileName("studio-artwork-design.pdf");
+        }
+      }
+      function handleFocus() {
+        if (waitingForStudio.current) {
+          waitingForStudio.current = false;
+          setArtworkFileName("studio-artwork-design.pdf");
+        }
+      }
+      document.addEventListener("visibilitychange", handleVisibility);
+      window.addEventListener("focus", handleFocus);
+      return () => {
+        document.removeEventListener("visibilitychange", handleVisibility);
+        window.removeEventListener("focus", handleFocus);
+      };
+    }, []);
     const [selectedChargeId, setSelectedChargeId] = useState<string | null>(null);
-    const [priceOverrideType, setPriceOverrideType] = useState<"new" | "percentage" | null>(null);
-    const [overrideInput, setOverrideInput] = useState("0.00");
-    const [appliedOverridePrice, setAppliedOverridePrice] = useState<number | null>(null);
-    const [overrideReason, setOverrideReason] = useState<string | null>(null);
-    const [tierPage, setTierPage] = useState(0);
-    const TIERS_PER_PAGE = 5;
     const [isCustomQty, setIsCustomQty] = useState(false);
     const [customQtyInput, setCustomQtyInput] = useState("");
 
@@ -150,10 +273,7 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
     const subtotal = parseFloat((basePrice + extraChargesTotal).toFixed(2));
     const taxRate = product.taxRate ?? 8;
     const tax = parseFloat((subtotal * (taxRate / 100)).toFixed(2));
-    const totalDue =
-      appliedOverridePrice !== null
-        ? appliedOverridePrice
-        : parseFloat((subtotal + tax).toFixed(2));
+    const totalDue = parseFloat((subtotal + tax).toFixed(2));
 
     const isValid = quantity >= product.minOrderQty && quantity <= product.maxOrderQty;
 
@@ -181,7 +301,22 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
 
     useEffect(() => {
       onLineTotalChange?.(totalDue);
-    }, [totalDue, onLineTotalChange]);
+      onPriceBreakdownChange?.({
+        quantity,
+        basePrice,
+        discount: 0,
+        chargesApplied,
+        extraChargesTotal,
+        selectedChargeLabel: selectedCharge?.label,
+        selectedChargePrice: selectedCharge?.unitPrice,
+        hasArtworkCharge: artworkOption === "customise",
+        subtotal,
+        taxRate,
+        tax,
+        totalDue,
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [totalDue, onLineTotalChange, onPriceBreakdownChange]);
 
     useEffect(() => {
       onValidityChange?.(isValid);
@@ -194,11 +329,10 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
       setUpsellApplied(false);
       setPreUpsellQuantity(null);
       setUpsellInfo(computeUpsell(product, startQty));
+      setQuantityInput(initialValues?.quantity != null ? String(initialValues.quantity) : "");
       setArtworkOption("new");
       setArtworkFileName("");
       setSelectedChargeId(null);
-      setAppliedOverridePrice(null);
-      setOverrideInput("0.00");
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [product.id]);
 
@@ -236,8 +370,6 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
       if (tab === "Extra charges" && (!product.extraCharges || product.extraCharges.length === 0)) return false;
       return true;
     });
-
-    const quantityOptions = generateQuantityOptions(product.minOrderQty, product.maxOrderQty, product.pricingTiers);
 
     return (
       <div style={{ background: "white", border: "1px solid var(--cim-border-base, #dadcdd)", borderRadius: "6px", overflow: "hidden" }}>
@@ -304,128 +436,10 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
             </div>
           </div>
 
-          {/* Pricing table */}
-          {product.pricingTiers.length > 1 && (() => {
-            const tiers = product.pricingTiers;
-            const totalPages = Math.ceil(tiers.length / TIERS_PER_PAGE);
-            const safePage = Math.min(tierPage, totalPages - 1);
-            const pageTiers = tiers.slice(safePage * TIERS_PER_PAGE, (safePage + 1) * TIERS_PER_PAGE);
-            const activeTierIndex = [...tiers].reverse().findIndex((t) => quantity >= t.minQty);
-            const activeIndex = activeTierIndex === -1 ? 0 : tiers.length - 1 - activeTierIndex;
-
-            const labelStyle: React.CSSProperties = {
-              fontSize: "0.8125rem",
-              fontWeight: 600,
-              color: "var(--cim-fg-base, #15191d)",
-              padding: "10px 12px",
-              background: "var(--cim-bg-subtle, #f8f9fa)",
-              borderRight: "1px solid var(--cim-border-base, #dadcdd)",
-              whiteSpace: "nowrap",
-            };
-            const cellStyle = (isActive: boolean): React.CSSProperties => ({
-              fontSize: "0.8125rem",
-              color: "var(--cim-fg-base, #15191d)",
-              padding: "10px 12px",
-              textAlign: "center",
-              background: isActive ? "var(--cim-bg-info-subtle, #e8f4f8)" : "white",
-              borderRight: "1px solid var(--cim-border-base, #dadcdd)",
-              cursor: "pointer",
-            });
-            const rowBorder = "1px solid var(--cim-border-base, #dadcdd)";
-
-            return (
-              <div style={{ border: "1px solid var(--cim-border-base, #dadcdd)", borderRadius: "6px", overflow: "hidden" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <tbody>
-                    <tr style={{ borderBottom: rowBorder }}>
-                      <td style={labelStyle}>Quantity</td>
-                      {pageTiers.map((tier, i) => {
-                        const gi = safePage * TIERS_PER_PAGE + i;
-                        return (
-                          <td key={gi} style={cellStyle(gi === activeIndex)} onClick={() => handleQuantityChange(tier.minQty)}>
-                            <strong>{tier.minQty}</strong>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                    <tr style={{ borderBottom: rowBorder }}>
-                      <td style={labelStyle}>Unit Price</td>
-                      {pageTiers.map((tier, i) => {
-                        const gi = safePage * TIERS_PER_PAGE + i;
-                        return (
-                          <td key={gi} style={cellStyle(gi === activeIndex)} onClick={() => handleQuantityChange(tier.minQty)}>
-                            {tier.unitPrice.toFixed(2)} USD
-                          </td>
-                        );
-                      })}
-                    </tr>
-                    <tr style={{ borderBottom: rowBorder }}>
-                      <td style={labelStyle}>Subtotal</td>
-                      {pageTiers.map((tier, i) => {
-                        const gi = safePage * TIERS_PER_PAGE + i;
-                        return (
-                          <td key={gi} style={{ ...cellStyle(gi === activeIndex), fontWeight: 600 }} onClick={() => handleQuantityChange(tier.minQty)}>
-                            {(tier.minQty * tier.unitPrice).toFixed(2)} USD
-                          </td>
-                        );
-                      })}
-                    </tr>
-                    <tr>
-                      <td style={labelStyle}>Upsell Offer</td>
-                      {pageTiers.map((tier, i) => {
-                        const gi = safePage * TIERS_PER_PAGE + i;
-                        const nextTier = tiers[gi + 1];
-                        return (
-                          <td key={gi} style={{ ...cellStyle(gi === activeIndex), color: "var(--cim-fg-subtle, #5f6469)" }} onClick={() => handleQuantityChange(tier.minQty)}>
-                            {nextTier ? (
-                              <>{nextTier.minQty - tier.minQty}{" "}<span style={{ fontSize: "0.75rem" }}>@ {nextTier.unitPrice.toFixed(2)}/each</span></>
-                            ) : "—"}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  </tbody>
-                </table>
-                {totalPages > 1 && (
-                  <div style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "8px 12px",
-                    borderTop: "1px solid var(--cim-border-base, #dadcdd)",
-                    background: "var(--cim-bg-subtle, #f8f9fa)",
-                  }}>
-                    <span style={{ fontSize: "0.75rem", color: "var(--cim-fg-subtle, #5f6469)" }}>
-                      Page {safePage + 1} of {totalPages}
-                    </span>
-                    <div style={{ display: "flex", gap: "4px" }}>
-                      <Button
-                        variant="secondary"
-                        size="small"
-                        isDisabled={safePage === 0}
-                        onPress={() => setTierPage(safePage - 1)}
-                      >
-                        ← Prev
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        size="small"
-                        isDisabled={safePage === totalPages - 1}
-                        onPress={() => setTierPage(safePage + 1)}
-                      >
-                        Next →
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-
           {/* Attributes + Quantity section */}
           {product.attributes.length > 0 ? (
             <div ref={attributesRef} style={{ ...sectionCard, padding: 0, gap: 0, overflow: "hidden" }}>
-              <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "16px" }}>
                 <p style={sectionHeading}>Attributes</p>
                 {product.attributes.map((attr) => {
                   const currentVal = selectedAttributes.find((a) => a.attributeId === attr.id)?.selectedOptionId ?? "";
@@ -462,8 +476,36 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
                       </div>
                     );
                   }
+                  if (attr.type === "radio") {
+                    return (
+                      <div key={attr.id} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                        <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)" }}>{attr.label}</span>
+                        <div style={{ display: "flex", gap: "24px", alignItems: "center" }}>
+                          {attr.options.map((opt) => {
+                            const isSelected = currentVal === opt.id;
+                            return (
+                              <label
+                                key={opt.id}
+                                style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}
+                              >
+                                <input
+                                  type="radio"
+                                  name={`attr-${attr.id}`}
+                                  value={opt.id}
+                                  checked={isSelected}
+                                  onChange={() => handleAttributeChange(attr.id, opt.id)}
+                                  style={radioInputStyle}
+                                />
+                                <span style={{ fontSize: "1rem", color: "var(--cim-fg-base, #15191d)", lineHeight: "24px" }}>{opt.label}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  }
                   return (
-                    <div key={attr.id} style={{ minWidth: "160px", maxWidth: "320px" }}>
+                    <div key={attr.id} style={{ width: "378px", maxWidth: "100%" }}>
                       <Select
                         label={attr.label}
                         selectedKey={currentVal}
@@ -478,203 +520,241 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
                 })}
               </div>
               <div ref={quantityRef} style={{ borderTop: "1px solid var(--cim-border-subtle, #eaebeb)", padding: "12px", display: "flex", flexDirection: "column", gap: "12px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <div style={{ width: "336px" }}>
-                    <Select
-                      label="Quantity"
-                      selectedKey={isCustomQty ? "custom" : String(quantity)}
-                      onSelectionChange={(val) => {
-                        if (String(val) === "custom") {
-                          setIsCustomQty(true);
-                          setCustomQtyInput(String(quantity));
-                        } else {
-                          setIsCustomQty(false);
-                          handleQuantityChange(Number(val));
-                        }
-                      }}
-                    >
-                      {quantityOptions.map((q) => {
-                        const tierPrice = resolvePricingTier(product.pricingTiers, q);
-                        const totalForQ = parseFloat((q * tierPrice).toFixed(2));
-                        return (
-                          <SelectItem key={String(q)} id={String(q)}>
-                            {q} (USD {totalForQ.toFixed(2)}) {tierPrice.toFixed(2)} / unit
-                          </SelectItem>
-                        );
-                      })}
-                      <SelectItem id="custom">Enter custom quantity...</SelectItem>
-                    </Select>
-                  </div>
-                  <div style={{ marginTop: "22px", color: "var(--cim-fg-subtle, #5f6469)", display: "flex" }}>
-                    <IconInfoCircle />
-                  </div>
-                </div>
-                {isCustomQty && (() => {
-                  const v = parseInt(customQtyInput, 10);
-                  const invalid = customQtyInput !== "" && (!isNaN(v) ? v < product.minOrderQty || v > product.maxOrderQty : true);
-                  return (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                      <div style={{ display: "flex", alignItems: "center", border: `1px solid ${invalid ? "var(--cim-border-critical, #d10023)" : "var(--cim-border-base, #dadcdd)"}`, borderRadius: "4px", width: "280px", overflow: "hidden" }}>
-                        <input
-                          type="number"
-                          min={product.minOrderQty}
-                          max={product.maxOrderQty}
-                          value={customQtyInput}
-                          placeholder={`${product.minOrderQty} – ${product.maxOrderQty}`}
-                          onChange={(e) => {
-                            setCustomQtyInput(e.target.value);
-                            const n = parseInt(e.target.value, 10);
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "16px", width: "100%" }}>
+                  {/* Left: field + stock */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <TextField
+                          label="Quantity"
+                          value={quantityInput}
+                          placeholder="Enter quantity"
+                          description={`Between ${product.minOrderQty} – ${product.maxOrderQty}`}
+                          validationState={
+                            quantityInput !== "" && (isNaN(parseInt(quantityInput, 10)) || parseInt(quantityInput, 10) < product.minOrderQty || parseInt(quantityInput, 10) > product.maxOrderQty)
+                              ? "invalid"
+                              : undefined
+                          }
+                          errorMessage={
+                            quantityInput !== "" && parseInt(quantityInput, 10) < product.minOrderQty
+                              ? `Minimum is ${product.minOrderQty}`
+                              : quantityInput !== "" && parseInt(quantityInput, 10) > product.maxOrderQty
+                              ? `Maximum is ${product.maxOrderQty}`
+                              : undefined
+                          }
+                          onChange={(val) => {
+                            setQuantityInput(val);
+                            const n = parseInt(val, 10);
                             if (!isNaN(n) && n >= product.minOrderQty && n <= product.maxOrderQty) {
-                              handleQuantityChange(n, true);
+                              handleQuantityChange(n);
                             }
                           }}
-                          style={{ border: "none", outline: "none", padding: "7px 10px", flex: 1, fontSize: "0.875rem", background: "white" }}
+                          inputMode="numeric"
                         />
                       </div>
-                      {invalid && (
-                        <span style={{ fontSize: "0.75rem", color: "var(--cim-fg-critical, #d10023)" }}>
-                          Must be between {product.minOrderQty} and {product.maxOrderQty}
+                      <div style={{ marginTop: "20px", color: "var(--cim-fg-subtle, #5f6469)", display: "flex", flexShrink: 0 }}>
+                        <IconInfoCircle />
+                      </div>
+                    </div>
+                    {product.stockQuantity !== undefined && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span style={{ color: "var(--cim-fg-success, #007e3f)", display: "flex" }}>
+                          <IconCheckCircleFill />
                         </span>
+                        <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)" }}>
+                          In stock - {product.stockQuantity}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  {/* Unit price */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "200px", flexShrink: 0 }}>
+                    <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)", lineHeight: "20px" }}>Unit price</span>
+                    <div style={{
+                      display: "flex", alignItems: "center",
+                      minHeight: "40px", borderRadius: "4px",
+                      border: "1px solid var(--cim-border-base, #dadcdd)",
+                      background: "var(--cim-bg-subtle, #f8f9fa)",
+                      overflow: "hidden",
+                    }}>
+                      {quantityInput === "" ? (
+                        <span style={{
+                          flex: 1, padding: "8px 12px",
+                          fontSize: "1rem", lineHeight: "24px",
+                          color: "var(--cim-fg-muted, #94979b)",
+                        }}>—</span>
+                      ) : (
+                        <>
+                          <span style={{
+                            padding: "8px 8px 8px 12px",
+                            fontSize: "1rem", lineHeight: "24px",
+                            color: "var(--cim-fg-subtle, #5f6469)",
+                            flexShrink: 0,
+                          }}>USD</span>
+                          <span style={{
+                            flex: 1, padding: "8px 12px",
+                            fontSize: "1rem", lineHeight: "24px",
+                            color: "var(--cim-fg-base, #15191d)",
+                          }}>{unitPrice.toFixed(2)}</span>
+                        </>
                       )}
                     </div>
-                  );
-                })()}
-                <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-subtle, #5f6469)" }}>
-                  Quantity has to be between {product.minOrderQty} - {product.maxOrderQty}
-                </span>
-                {product.stockQuantity !== undefined && (
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span style={{ color: "var(--cim-fg-success, #007e3f)", display: "flex" }}>
-                      <IconCheckCircleFill />
-                    </span>
-                    <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)" }}>
-                      In stock - {product.stockQuantity}
-                    </span>
                   </div>
-                )}
-              </div>
-              {upsellInfo && (
-                <div style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "12px",
-                  padding: "10px 12px",
-                  background: "var(--cim-bg-subtle, #f8f9fa)",
-                  borderTop: "1px solid var(--cim-border-subtle, #eaebeb)",
-                }}>
-                  {upsellApplied ? (
-                    <Button variant="secondary" tone="critical" size="small" onPress={handleRemoveUpsell}>Remove upsell</Button>
-                  ) : (
-                    <Button variant="secondary" size="small" onPress={handleAddUpsell}>Add upsell</Button>
-                  )}
-                  <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)" }}>
-                    {upsellApplied
-                      ? `${upsellInfo.additionalUnits} more added for ${upsellInfo.additionalCost.toFixed(2)} USD`
-                      : `${upsellInfo.additionalUnits} more for USD ${upsellInfo.additionalCost.toFixed(2)}`}
-                  </span>
+                  {/* Subtotal */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "200px", flexShrink: 0 }}>
+                    <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)", lineHeight: "20px" }}>Subtotal</span>
+                    <div style={{
+                      display: "flex", alignItems: "center",
+                      minHeight: "40px", borderRadius: "4px",
+                      border: "1px solid var(--cim-border-base, #dadcdd)",
+                      background: "var(--cim-bg-subtle, #f8f9fa)",
+                      overflow: "hidden",
+                    }}>
+                      {quantityInput === "" ? (
+                        <span style={{
+                          flex: 1, padding: "8px 12px",
+                          fontSize: "1rem", lineHeight: "24px",
+                          color: "var(--cim-fg-muted, #94979b)",
+                        }}>—</span>
+                      ) : (
+                        <>
+                          <span style={{
+                            padding: "8px 8px 8px 12px",
+                            fontSize: "1rem", lineHeight: "24px",
+                            color: "var(--cim-fg-subtle, #5f6469)",
+                            flexShrink: 0,
+                          }}>USD</span>
+                          <span style={{
+                            flex: 1, padding: "8px 12px",
+                            fontSize: "1rem", lineHeight: "24px",
+                            color: "var(--cim-fg-base, #15191d)",
+                          }}>{basePrice.toFixed(2)}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
           ) : (
             <div ref={quantityRef} style={{ ...sectionCard, padding: 0, gap: 0, overflow: "hidden" }}>
               <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "12px" }}>
                 <p style={sectionHeading}>Quantity</p>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <div style={{ width: "336px" }}>
-                    <Select
-                      label="Quantity"
-                      selectedKey={isCustomQty ? "custom" : String(quantity)}
-                      onSelectionChange={(val) => {
-                        if (String(val) === "custom") {
-                          setIsCustomQty(true);
-                          setCustomQtyInput(String(quantity));
-                        } else {
-                          setIsCustomQty(false);
-                          handleQuantityChange(Number(val));
-                        }
-                      }}
-                    >
-                      {quantityOptions.map((q) => {
-                        const tierPrice = resolvePricingTier(product.pricingTiers, q);
-                        const totalForQ = parseFloat((q * tierPrice).toFixed(2));
-                        return (
-                          <SelectItem key={String(q)} id={String(q)}>
-                            {q} (USD {totalForQ.toFixed(2)}) {tierPrice.toFixed(2)} / unit
-                          </SelectItem>
-                        );
-                      })}
-                      <SelectItem id="custom">Enter custom quantity...</SelectItem>
-                    </Select>
-                  </div>
-                  <div style={{ marginTop: "22px", color: "var(--cim-fg-subtle, #5f6469)", display: "flex" }}>
-                    <IconInfoCircle />
-                  </div>
-                </div>
-                {isCustomQty && (() => {
-                  const v = parseInt(customQtyInput, 10);
-                  const invalid = customQtyInput !== "" && (!isNaN(v) ? v < product.minOrderQty || v > product.maxOrderQty : true);
-                  return (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                      <div style={{ display: "flex", alignItems: "center", border: `1px solid ${invalid ? "var(--cim-border-critical, #d10023)" : "var(--cim-border-base, #dadcdd)"}`, borderRadius: "4px", width: "280px", overflow: "hidden" }}>
-                        <input
-                          type="number"
-                          min={product.minOrderQty}
-                          max={product.maxOrderQty}
-                          value={customQtyInput}
-                          placeholder={`${product.minOrderQty} – ${product.maxOrderQty}`}
-                          onChange={(e) => {
-                            setCustomQtyInput(e.target.value);
-                            const n = parseInt(e.target.value, 10);
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "16px", width: "100%" }}>
+                  {/* Left: field + stock */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <TextField
+                          label="Quantity"
+                          value={quantityInput}
+                          placeholder="Enter quantity"
+                          description={`Between ${product.minOrderQty} – ${product.maxOrderQty}`}
+                          validationState={
+                            quantityInput !== "" && (isNaN(parseInt(quantityInput, 10)) || parseInt(quantityInput, 10) < product.minOrderQty || parseInt(quantityInput, 10) > product.maxOrderQty)
+                              ? "invalid"
+                              : undefined
+                          }
+                          errorMessage={
+                            quantityInput !== "" && parseInt(quantityInput, 10) < product.minOrderQty
+                              ? `Minimum is ${product.minOrderQty}`
+                              : quantityInput !== "" && parseInt(quantityInput, 10) > product.maxOrderQty
+                              ? `Maximum is ${product.maxOrderQty}`
+                              : undefined
+                          }
+                          onChange={(val) => {
+                            setQuantityInput(val);
+                            const n = parseInt(val, 10);
                             if (!isNaN(n) && n >= product.minOrderQty && n <= product.maxOrderQty) {
-                              handleQuantityChange(n, true);
+                              handleQuantityChange(n);
                             }
                           }}
-                          style={{ border: "none", outline: "none", padding: "7px 10px", flex: 1, fontSize: "0.875rem", background: "white" }}
+                          inputMode="numeric"
                         />
                       </div>
-                      {invalid && (
-                        <span style={{ fontSize: "0.75rem", color: "var(--cim-fg-critical, #d10023)" }}>
-                          Must be between {product.minOrderQty} and {product.maxOrderQty}
+                      <div style={{ marginTop: "20px", color: "var(--cim-fg-subtle, #5f6469)", display: "flex", flexShrink: 0 }}>
+                        <IconInfoCircle />
+                      </div>
+                    </div>
+                    {product.stockQuantity !== undefined && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span style={{ color: "var(--cim-fg-success, #007e3f)", display: "flex" }}>
+                          <IconCheckCircleFill />
                         </span>
+                        <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)" }}>
+                          In stock - {product.stockQuantity}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  {/* Unit price */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "200px", flexShrink: 0 }}>
+                    <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)", lineHeight: "20px" }}>Unit price</span>
+                    <div style={{
+                      display: "flex", alignItems: "center",
+                      minHeight: "40px", borderRadius: "4px",
+                      border: "1px solid var(--cim-border-base, #dadcdd)",
+                      background: "var(--cim-bg-subtle, #f8f9fa)",
+                      overflow: "hidden",
+                    }}>
+                      {quantityInput === "" ? (
+                        <span style={{
+                          flex: 1, padding: "8px 12px",
+                          fontSize: "1rem", lineHeight: "24px",
+                          color: "var(--cim-fg-muted, #94979b)",
+                        }}>—</span>
+                      ) : (
+                        <>
+                          <span style={{
+                            padding: "8px 8px 8px 12px",
+                            fontSize: "1rem", lineHeight: "24px",
+                            color: "var(--cim-fg-subtle, #5f6469)",
+                            flexShrink: 0,
+                          }}>USD</span>
+                          <span style={{
+                            flex: 1, padding: "8px 12px",
+                            fontSize: "1rem", lineHeight: "24px",
+                            color: "var(--cim-fg-base, #15191d)",
+                          }}>{unitPrice.toFixed(2)}</span>
+                        </>
                       )}
                     </div>
-                  );
-                })()}
-                <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-subtle, #5f6469)" }}>
-                  Quantity has to be between {product.minOrderQty} - {product.maxOrderQty}
-                </span>
-                {product.stockQuantity !== undefined && (
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span style={{ color: "var(--cim-fg-success, #007e3f)", display: "flex" }}>
-                      <IconCheckCircleFill />
-                    </span>
-                    <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)" }}>
-                      In stock - {product.stockQuantity}
-                    </span>
                   </div>
-                )}
-              </div>
-              {upsellInfo && (
-                <div style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "12px",
-                  padding: "10px 12px",
-                  background: "var(--cim-bg-subtle, #f8f9fa)",
-                  borderTop: "1px solid var(--cim-border-subtle, #eaebeb)",
-                }}>
-                  {upsellApplied ? (
-                    <Button variant="secondary" tone="critical" size="small" onPress={handleRemoveUpsell}>Remove upsell</Button>
-                  ) : (
-                    <Button variant="secondary" size="small" onPress={handleAddUpsell}>Add upsell</Button>
-                  )}
-                  <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)" }}>
-                    {upsellApplied
-                      ? `${upsellInfo.additionalUnits} more added for ${upsellInfo.additionalCost.toFixed(2)} USD`
-                      : `${upsellInfo.additionalUnits} more for USD ${upsellInfo.additionalCost.toFixed(2)}`}
-                  </span>
+                  {/* Subtotal */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "200px", flexShrink: 0 }}>
+                    <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)", lineHeight: "20px" }}>Subtotal</span>
+                    <div style={{
+                      display: "flex", alignItems: "center",
+                      minHeight: "40px", borderRadius: "4px",
+                      border: "1px solid var(--cim-border-base, #dadcdd)",
+                      background: "var(--cim-bg-subtle, #f8f9fa)",
+                      overflow: "hidden",
+                    }}>
+                      {quantityInput === "" ? (
+                        <span style={{
+                          flex: 1, padding: "8px 12px",
+                          fontSize: "1rem", lineHeight: "24px",
+                          color: "var(--cim-fg-muted, #94979b)",
+                        }}>—</span>
+                      ) : (
+                        <>
+                          <span style={{
+                            padding: "8px 8px 8px 12px",
+                            fontSize: "1rem", lineHeight: "24px",
+                            color: "var(--cim-fg-subtle, #5f6469)",
+                            flexShrink: 0,
+                          }}>USD</span>
+                          <span style={{
+                            flex: 1, padding: "8px 12px",
+                            fontSize: "1rem", lineHeight: "24px",
+                            color: "var(--cim-fg-base, #15191d)",
+                          }}>{basePrice.toFixed(2)}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
           )}
 
@@ -702,7 +782,7 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
                   name="artworkOption"
                   value="customise"
                   checked={artworkOption === "customise"}
-                  onChange={() => { setArtworkOption("customise"); setArtworkFileName(""); }}
+                  onChange={() => { setArtworkOption("customise"); setIsArtworkModalOpen(true); }}
                   style={radioInputStyle}
                 />
                 <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)" }}>Customise as before</span>
@@ -738,204 +818,38 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
                       <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)" }}>{artworkFileName}</span>
                     </>
                   ) : (
-                    <>
-                      <FileTrigger
-                        onSelect={(files) => { if (files?.[0]) setArtworkFileName(files[0].name); }}
-                        acceptedFileTypes={[".pdf", ".ai", ".eps", ".png", ".jpg", ".tiff"]}
-                      >
-                        <Button variant="secondary" size="small">Choose file</Button>
-                      </FileTrigger>
-                      <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-muted, #94979b)" }}>No file selected</span>
-                    </>
+                    <a
+                      href="https://pens.experience.cimpress.io/us/studio/?key=PRD-ZQO1BK4YA&productVersion=4&locale=en-us&selectedOptions=%7B%22Substrate%20Color%22%3A%22%23000000%22%7D&fullBleedElected=true&mpvId=portAuthorityWomensBrickJacketClone&qty=%7b%22S%22%3a0%2c%22M%22%3a0%2c%223XL%22%3a0%2c%22XS%22%3a5%7d"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ textDecoration: "none" }}
+                      onClick={() => { waitingForStudio.current = true; }}
+                    >
+                      <Button variant="secondary" size="small">Add artwork</Button>
+                    </a>
                   )}
                 </div>
               </div>
             )}
-          </div>
-
-          {/* Extra charges section */}
-          {(product.extraCharges?.length ?? 0) > 0 && (
-            <div ref={extraChargesRef} style={sectionCard}>
-              <p style={sectionHeading}>Extra charges</p>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr>
-                    <th style={{ width: "36px", padding: "8px 0", borderBottom: "1px solid var(--cim-border-subtle, #eaebeb)" }} />
-                    <th style={{ textAlign: "left", fontSize: "0.875rem", fontWeight: 600, padding: "8px 0", borderBottom: "1px solid var(--cim-border-subtle, #eaebeb)", color: "var(--cim-fg-base)" }}>Type</th>
-                    <th style={{ textAlign: "right", fontSize: "0.875rem", fontWeight: 600, padding: "8px 0", borderBottom: "1px solid var(--cim-border-subtle, #eaebeb)", color: "var(--cim-fg-base)" }}>Unit Price</th>
-                    <th style={{ textAlign: "right", fontSize: "0.875rem", fontWeight: 600, padding: "8px 0", borderBottom: "1px solid var(--cim-border-subtle, #eaebeb)", color: "var(--cim-fg-base)" }}>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {product.extraCharges?.map((charge) => {
-                    const isSelected = selectedChargeId === charge.id;
-                    return (
-                      <tr
-                        key={charge.id}
-                        onClick={() => setSelectedChargeId(isSelected ? null : charge.id)}
-                        style={{ cursor: "pointer" }}
-                      >
-                        <td style={{ padding: "12px 0", borderBottom: "1px solid var(--cim-border-subtle, #eaebeb)" }}>
-                          <input
-                            type="radio"
-                            name="extraCharge"
-                            checked={isSelected}
-                            onChange={() => setSelectedChargeId(isSelected ? null : charge.id)}
-                            onClick={(e) => e.stopPropagation()}
-                            style={{ ...radioInputStyle, margin: 0 }}
-                          />
-                        </td>
-                        <td style={{ fontSize: "0.875rem", padding: "12px 8px 12px 0", borderBottom: "1px solid var(--cim-border-subtle, #eaebeb)", color: "var(--cim-fg-base)" }}>
-                          {charge.label}
-                        </td>
-                        <td style={{ fontSize: "0.875rem", textAlign: "right", padding: "12px 0", borderBottom: "1px solid var(--cim-border-subtle, #eaebeb)", color: "var(--cim-fg-base)" }}>
-                          {charge.unitPrice.toFixed(2)} USD
-                        </td>
-                        <td style={{ fontSize: "0.875rem", fontWeight: 600, textAlign: "right", padding: "12px 0", borderBottom: "1px solid var(--cim-border-subtle, #eaebeb)", color: "var(--cim-fg-base)" }}>
-                          {charge.unitPrice.toFixed(2)} USD
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Price override section */}
-          <div ref={priceOverrideRef} style={sectionCard}>
-            <p style={sectionHeading}>
-              Price override{" "}
-              <span style={{ fontSize: "0.875rem", fontWeight: 400, color: "var(--cim-fg-subtle, #5f6469)" }}>
-                (Current price USD {subtotal.toFixed(2)})
-              </span>
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
-                <input
-                  type="radio"
-                  name="priceOverrideType"
-                  value="new"
-                  checked={priceOverrideType === "new"}
-                  onChange={() => setPriceOverrideType("new")}
-                  style={radioInputStyle}
-                />
-                <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)" }}>New price</span>
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
-                <input
-                  type="radio"
-                  name="priceOverrideType"
-                  value="percentage"
-                  checked={priceOverrideType === "percentage"}
-                  onChange={() => setPriceOverrideType("percentage")}
-                  style={radioInputStyle}
-                />
-                <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)" }}>Percentage based pricing</span>
-              </label>
-            </div>
-            {(() => {
-              const val = parseFloat(overrideInput);
-              const hasInput = overrideInput !== "" && !isNaN(val) && val > 0;
-              const isAboveOriginal = priceOverrideType === "new"
-                ? hasInput && val >= subtotal
-                : hasInput && val <= 0;
-              const inputError = isAboveOriginal
-                ? priceOverrideType === "new"
-                  ? `Must be less than current price (${subtotal.toFixed(2)} USD)`
-                  : "Discount percentage must be greater than 0"
-                : null;
-              const canSave = !priceOverrideType || !hasInput || isAboveOriginal || !overrideReason;
-              return (
-                <div style={{ opacity: priceOverrideType === null ? 0.4 : 1, display: "flex", flexDirection: "column", gap: "12px" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                    <div style={{
-                      display: "flex",
-                      alignItems: "center",
-                      border: `1px solid ${inputError ? "var(--cim-border-critical, #d10023)" : "var(--cim-border-base, #dadcdd)"}`,
-                      borderRadius: "4px",
-                      overflow: "hidden",
-                      width: "180px",
-                    }}>
-                      <span style={{
-                        padding: "7px 8px",
-                        background: "var(--cim-bg-subtle, #f8f9fa)",
-                        fontSize: "0.875rem",
-                        color: "var(--cim-fg-subtle, #5f6469)",
-                        borderRight: `1px solid ${inputError ? "var(--cim-border-critical, #d10023)" : "var(--cim-border-base, #dadcdd)"}`,
-                        flexShrink: 0,
-                      }}>
-                        {priceOverrideType === "percentage" ? "%" : "USD"}
-                      </span>
-                      <input
-                        type="number"
-                        value={overrideInput}
-                        min={0}
-                        max={priceOverrideType === "new" ? subtotal - 0.01 : 99.99}
-                        step={0.01}
-                        disabled={priceOverrideType === null}
-                        onChange={(e) => setOverrideInput(e.target.value)}
-                        style={{ border: "none", outline: "none", padding: "7px 8px", flex: 1, fontSize: "0.875rem", background: "white", cursor: priceOverrideType === null ? "not-allowed" : "auto" }}
-                      />
-                    </div>
-                    {inputError && (
-                      <span style={{ fontSize: "0.75rem", color: "var(--cim-fg-critical, #d10023)" }}>{inputError}</span>
-                    )}
-                  </div>
-                  <div style={{ maxWidth: "320px" }}>
-                    <Select
-                      label="Reason for price override"
-                      selectedKey={overrideReason}
-                      onSelectionChange={(val) => setOverrideReason(String(val))}
-                      placeholder="Select a reason"
-                      isRequired
-                      isDisabled={priceOverrideType === null}
-                    >
-                      <SelectItem id="customer-loyalty">Customer loyalty discount</SelectItem>
-                      <SelectItem id="competitor-match">Competitor price match</SelectItem>
-                      <SelectItem id="manager-approval">Manager approval</SelectItem>
-                      <SelectItem id="promotional-offer">Promotional offer</SelectItem>
-                      <SelectItem id="damaged-goods">Damaged goods</SelectItem>
-                      <SelectItem id="other">Other</SelectItem>
-                    </Select>
-                  </div>
-                  {appliedOverridePrice === null && (
-                    <Button
-                      variant="secondary"
-                      size="small"
-                      isDisabled={canSave}
-                      onPress={() => {
-                        if (priceOverrideType === "new") {
-                          setAppliedOverridePrice(val);
-                        } else {
-                          setAppliedOverridePrice(parseFloat((subtotal * (1 - val / 100)).toFixed(2)));
-                        }
-                      }}
-                    >
-                      Save changes to price
-                    </Button>
-                  )}
-                </div>
-              );
-            })()}
-            {appliedOverridePrice !== null && (
+            {artworkOption === "customise" && artworkFileName && (
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <Button
-                  variant="secondary"
-                  tone="critical"
-                  size="small"
-                  onPress={() => {
-                    setAppliedOverridePrice(null);
-                    setOverrideInput("0.00");
-                    setOverrideReason(null);
-                    setPriceOverrideType(null);
+                <button
+                  onClick={() => setIsArtworkModalOpen(true)}
+                  style={{
+                    padding: "5px 12px",
+                    border: "1px solid var(--cim-border-base, #dadcdd)",
+                    borderRadius: "4px",
+                    background: "white",
+                    color: "var(--cim-fg-accent, #007798)",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
                   }}
                 >
-                  Remove price override
-                </Button>
-                <span style={{ fontSize: "0.8125rem", color: "var(--cim-fg-success, #007e3f)", fontWeight: 500 }}>
-                  Override applied: {appliedOverridePrice.toFixed(2)} USD
-                </span>
+                  Change artwork
+                </button>
+                <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-base, #15191d)" }}>{artworkFileName}</span>
               </div>
             )}
           </div>
@@ -945,7 +859,6 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
             <Disclosure title="Add-ons" variant="subtle">
               <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "8px", alignItems: "flex-start" }}>
                 <Button variant="secondary" size="small">Add new accessory</Button>
-                <Button variant="secondary" size="small">Add new service</Button>
               </div>
             </Disclosure>
           </div>
@@ -963,7 +876,7 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
             <p style={sectionHeading}>Item Price</p>
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.875rem", color: "var(--cim-fg-base)" }}>
-                <span>Price</span>
+                <span>Price ({quantity} qty)</span>
                 <span>{basePrice.toFixed(2)} USD</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.875rem", color: "var(--cim-fg-base)" }}>
@@ -998,12 +911,10 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
                 <span>Tax ({taxRate}%)</span>
                 <span>{tax.toFixed(2)} USD</span>
               </div>
-
               <div style={{ height: "1px", background: "var(--cim-border-base, #dadcdd)", margin: "4px 0" }} />
-
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <span style={{ fontSize: "1.125rem", fontWeight: 600, color: "var(--cim-fg-base)" }}>Total due</span>
-                <span style={{ fontSize: "1.75rem", fontWeight: 600, color: "var(--cim-fg-muted, #94979b)" }}>
+                <span style={{ fontSize: "1.75rem", fontWeight: 600, color: "var(--cim-fg-base, #15191d)" }}>
                   {totalDue.toFixed(2)} USD
                 </span>
               </div>
@@ -1011,6 +922,20 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
           </div>
 
         </div>
+
+        {isArtworkModalOpen && (
+          <PreviousArtworkModal
+            onConfirm={(artwork) => {
+              setArtworkFileName(artwork.fileName);
+              setIsArtworkModalOpen(false);
+            }}
+            onCancel={() => {
+              setArtworkOption("new");
+              setArtworkFileName("");
+              setIsArtworkModalOpen(false);
+            }}
+          />
+        )}
       </div>
     );
   }

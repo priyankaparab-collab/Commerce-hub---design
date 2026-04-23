@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Button, SearchField, Text } from "@cimpress-ui/react";
+import { Button, SearchField, Text, PopoverRoot, Popover } from "@cimpress-ui/react";
 import { AppBreadcrumbs } from "@/components/AppBreadcrumbs";
 import { IconArrowLeft } from "@cimpress-ui/react/icons";
 import type { ProductCatalogItem, DraftOrderItem } from "@/lib/types";
 import { MOCK_PRODUCT_CATALOG } from "@/lib/createOrderMockData";
-import { ItemConfigurationCard, type ItemConfigurationCardHandle } from "./ItemConfigurationCard";
+import { ItemConfigurationCard, type ItemConfigurationCardHandle, type PriceBreakdown } from "./ItemConfigurationCard";
 import type { Customer } from "@/lib/createOrderMockData";
 
 interface AddNewItemViewProps {
@@ -25,15 +25,6 @@ function searchProducts(query: string): ProductCatalogItem[] {
       p.name.toLowerCase().includes(q) ||
       p.id.toLowerCase().includes(q) ||
       p.category.toLowerCase().includes(q)
-  );
-}
-
-function NotesIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
   );
 }
 
@@ -70,6 +61,7 @@ export function AddNewItemView({ customer, editingItem, onAddComplete, onCancel 
   const [selectedProduct, setSelectedProduct] = useState<ProductCatalogItem | null>(editingItem?.product ?? null);
   const [itemTotal, setItemTotal] = useState(editingItem?.lineTotal ?? 0);
   const [isValid, setIsValid] = useState(isEditing);
+  const [priceBreakdown, setPriceBreakdown] = useState<PriceBreakdown | null>(null);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputWrapperRef = useRef<HTMLDivElement>(null);
@@ -143,10 +135,6 @@ export function AddNewItemView({ customer, editingItem, onAddComplete, onCancel 
             <Text as="h1" variant="title-4">{isEditing ? "Edit item" : "Add new item"}</Text>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <button style={actionBtnStyle} aria-label="Add notes">
-              <NotesIcon />
-              Add notes
-            </button>
             <button style={actionBtnStyle} aria-label="Share this item">
               <ShareIcon />
               Share this item
@@ -249,6 +237,7 @@ export function AddNewItemView({ customer, editingItem, onAddComplete, onCancel 
               onAddToOrder={onAddComplete}
               onLineTotalChange={setItemTotal}
               onValidityChange={setIsValid}
+              onPriceBreakdownChange={setPriceBreakdown}
             />
           </div>
         )}
@@ -279,9 +268,64 @@ export function AddNewItemView({ customer, editingItem, onAddComplete, onCancel 
             <span style={{ fontSize: "1rem", fontWeight: 600, color: itemTotal > 0 ? "var(--cim-fg-base, #15191d)" : "var(--cim-fg-muted, #94979b)", whiteSpace: "nowrap" }}>
               Item total {itemTotal.toFixed(2)} USD
             </span>
-            <button style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "0.875rem", color: "var(--cim-fg-muted, #94979b)", textAlign: "left", textDecoration: "underline" }}>
-              View details
-            </button>
+            {priceBreakdown && (
+              <PopoverRoot>
+                <Button
+                  variant="tertiary"
+                  size="small"
+                  UNSAFE_style={{ padding: 0, fontSize: "0.875rem", textDecoration: "underline", minHeight: "unset", height: "auto" }}
+                >
+                  View details
+                </Button>
+                <Popover title="Item Price" placement="top">
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", minWidth: "300px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.875rem", color: "var(--cim-fg-base)" }}>
+                      <span>Price ({priceBreakdown.quantity} qty)</span>
+                      <span>{priceBreakdown.basePrice.toFixed(2)} USD</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.875rem", color: "var(--cim-fg-base)" }}>
+                      <span>Discount</span>
+                      <span>0.00 USD</span>
+                    </div>
+                    {priceBreakdown.chargesApplied > 0 && (
+                      <>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.875rem", color: "var(--cim-fg-base)" }}>
+                          <span>Total charges applied ({priceBreakdown.chargesApplied})</span>
+                          <span>{priceBreakdown.extraChargesTotal.toFixed(2)} USD</span>
+                        </div>
+                        {priceBreakdown.selectedChargeLabel && (
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.875rem", color: "var(--cim-fg-base)" }}>
+                            <span>{priceBreakdown.selectedChargeLabel}</span>
+                            <span>{priceBreakdown.selectedChargePrice?.toFixed(2)} USD</span>
+                          </div>
+                        )}
+                        {priceBreakdown.hasArtworkCharge && (
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.875rem", color: "var(--cim-fg-base)" }}>
+                            <span>Artwork customisation</span>
+                            <span>10.00 USD</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.875rem", color: "var(--cim-fg-base)" }}>
+                      <span>Subtotal</span>
+                      <span>{priceBreakdown.subtotal.toFixed(2)} USD</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.875rem", color: "var(--cim-fg-subtle, #5f6469)" }}>
+                      <span>Tax ({priceBreakdown.taxRate}%)</span>
+                      <span>{priceBreakdown.tax.toFixed(2)} USD</span>
+                    </div>
+                    <div style={{ height: "1px", background: "var(--cim-border-base, #dadcdd)", margin: "4px 0" }} />
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                      <span style={{ fontSize: "1rem", fontWeight: 600, color: "var(--cim-fg-base)" }}>Total due</span>
+                      <span style={{ fontSize: "1.25rem", fontWeight: 600, color: "var(--cim-fg-base, #15191d)" }}>
+                        {priceBreakdown.totalDue.toFixed(2)} USD
+                      </span>
+                    </div>
+                  </div>
+                </Popover>
+              </PopoverRoot>
+            )}
           </div>
           <div style={{ display: "flex", gap: "12px" }}>
             <Button variant="secondary" onPress={onCancel}>

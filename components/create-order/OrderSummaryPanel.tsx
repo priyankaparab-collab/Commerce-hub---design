@@ -84,7 +84,7 @@ export function OrderSummaryPanel({
 
   const displayTotal = appliedOverridePrice !== null
     ? appliedOverridePrice
-    : summary.total;
+    : parseFloat((summary.total + draftOrder.shippingEstimate).toFixed(2));
 
   function handleApplyDiscount() {
     const code = discountCode.trim().toUpperCase();
@@ -163,9 +163,13 @@ export function OrderSummaryPanel({
       }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
           <span style={{ fontSize: "1rem", color: "var(--cim-fg-subtle, #5f6469)" }}>Shipping cost</span>
-          <span style={{ fontSize: "0.75rem", color: "var(--cim-fg-subtle, #5f6469)" }}>Yet to be added</span>
+          {draftOrder.shippingEstimate === 0 && (
+            <span style={{ fontSize: "0.75rem", color: "var(--cim-fg-subtle, #5f6469)" }}>Yet to be added</span>
+          )}
         </div>
-        <span style={{ fontSize: "1rem", color: "var(--cim-fg-subtle, #5f6469)" }}>0.00 USD</span>
+        <span style={{ fontSize: "1rem", color: draftOrder.shippingEstimate > 0 ? "var(--cim-fg-base, #15191d)" : "var(--cim-fg-subtle, #5f6469)" }}>
+          {draftOrder.shippingEstimate.toFixed(2)} USD
+        </span>
       </div>
 
       {/* Divider */}
