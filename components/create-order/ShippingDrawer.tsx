@@ -100,14 +100,12 @@ export function ShippingDrawer({ isOpen, items, draftOrder, onClose, onReviewToC
   const [addressTarget, setAddressTarget] = useState<AddressTarget>("shipping");
   const [addresses, setAddresses] = useState<SavedAddress[]>(MOCK_SAVED_ADDRESSES);
   const defaultAddr = MOCK_SAVED_ADDRESSES.find((a) => a.isDefault) ?? MOCK_SAVED_ADDRESSES[0] ?? null;
-  const firstMethod = MOCK_SHIPPING_METHODS[0] ?? null;
-
   const [shippingAddressId, setShippingAddressId] = useState<string | null>(defaultAddr?.id ?? null);
   const [billingAddressId, setBillingAddressId] = useState<string | null>(null);
   const [billingSameAsShipping, setBillingSameAsShipping] = useState(true);
-  const [shippingMethodId, setShippingMethodId] = useState<string | null>(firstMethod?.id ?? null);
+  const [shippingMethodId, setShippingMethodId] = useState<string | null>(null);
   const [pendingMethodId, setPendingMethodId] = useState<string | null>(null);
-  const [expandedMethodId, setExpandedMethodId] = useState<string | null>(firstMethod?.id ?? null);
+  const [expandedMethodId, setExpandedMethodId] = useState<string | null>(null);
   const [form, setForm] = useState<AddressForm>(EMPTY_FORM);
 
   const reviewBodyRef = useRef<HTMLDivElement>(null);
