@@ -2,16 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "Commerce Hub (dev)",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 3000
-    },
-    {
-      "name": "Commerce Hub (preview build)",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "start"],
-      "port": 3000
+      "name": "commerce-hub",
+      "runtimeExecutable": "/usr/local/bin/node",
+      "runtimeArgs": ["/Users/priyankaparab/Desktop/claude/commerce-hub/serve-static.js"],
+      "port": 3845
     }
   ]
 }

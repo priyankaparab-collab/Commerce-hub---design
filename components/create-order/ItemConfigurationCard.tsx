@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, forwardRef, useImperativeHandle, useRef, useCallback } from "react";
-import { Button, Select, SelectItem, TextField, Disclosure, Badge, Tooltip } from "@cimpress-ui/react";
+import { Button, Select, SelectItem, TextField, Disclosure, Badge, Tooltip, RadioGroup, Radio } from "@cimpress-ui/react";
 import { IconInfoCircle, IconCheckCircleFill, IconChevronRight } from "@cimpress-ui/react/icons";
 import type { ProductCatalogItem, DraftOrderItem, DraftOrderItemAttribute, QuantityPricingTier } from "@/lib/types";
 import { resolvePricingTier as resolveTier, computeIncrementRanges, generateGuideQuantities } from "@/lib/pricingUtils";
@@ -366,6 +366,9 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
     const [showAllAccessories, setShowAllAccessories] = useState(false);
     const [isChargesExpanded, setIsChargesExpanded] = useState(false);
     const [isAccessoriesExpanded, setIsAccessoriesExpanded] = useState(false);
+    const [offerType, setOfferType] = useState<"discount" | "freeQty">("discount");
+    const [offerDiscountPct, setOfferDiscountPct] = useState<number>(0);
+    const [offerFreeQty, setOfferFreeQty] = useState<number>(0);
 
     const unitPrice = resolvePricingTier(product.pricingTiers, quantity);
     // basePrice is 0 until the user has entered a quantity
@@ -428,7 +431,11 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
     const extraChargesTotal = parseFloat(((selectedCharge?.unitPrice ?? 0) + artworkCharge).toFixed(2));
     const chargesApplied = (selectedCharge ? 1 : 0) + (artworkOption !== null ? 1 : 0);
     const accessoriesTotal = parseFloat(addedAccessories.reduce((sum, a) => sum + a.quantity * a.unitPrice, 0).toFixed(2));
-    const subtotal = parseFloat((basePrice + extraChargesTotal + accessoriesTotal).toFixed(2));
+    const offerPct = offerType === "discount" ? offerDiscountPct : offerFreeQty;
+    const discountAmount = offerPct > 0
+      ? parseFloat((basePrice * offerPct / 100).toFixed(2))
+      : 0;
+    const subtotal = parseFloat((basePrice - discountAmount + extraChargesTotal + accessoriesTotal).toFixed(2));
     const taxRate = product.taxRate ?? 8;
     const tax = parseFloat((subtotal * (taxRate / 100)).toFixed(2));
     const totalDue = parseFloat((subtotal + tax).toFixed(2));
@@ -462,7 +469,7 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
       onPriceBreakdownChange?.({
         quantity,
         basePrice,
-        discount: 0,
+        discount: discountAmount,
         chargesApplied,
         extraChargesTotal,
         selectedChargeLabel: selectedCharge?.label,
@@ -1241,7 +1248,7 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
             const visibleAccessories = showAllAccessories ? MOCK_ACCESSORIES : MOCK_ACCESSORIES.slice(0, 3);
             return (
               <div ref={addOnsRef} style={{ position: "relative", border: "1px solid var(--cim-border-base, #dadcdd)", borderRadius: "6px", overflow: "hidden" }}>
-                <Disclosure title="Add accessory" variant="subtle">
+                <Disclosure title="Add accessory" variant="subtle" defaultExpanded>
                   <div style={{ display: "flex", flexDirection: "column", gap: "16px", padding: "4px 16px 16px" }}>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px" }}>
                       {visibleAccessories.map((acc) => {
@@ -1293,6 +1300,97 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
             );
           })()}
 
+          {/* Customize offer section */}
+          <div style={{
+            background: "white",
+            border: "1px solid var(--cim-border-base, #dadcdd)",
+            borderRadius: "6px",
+            padding: "16px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px",
+          }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: "8px", flexWrap: "wrap" }}>
+              <p style={sectionHeading}>Customize offer</p>
+              <span style={{ fontSize: "0.875rem", color: "var(--cim-fg-subtle, #5f6469)" }}>
+                (You can apply either a free quantity or a discount)
+              </span>
+            </div>
+
+            <RadioGroup
+              aria-label="Offer type"
+              value={offerType}
+              onChange={(val) => {
+                setOfferType(val as "discount" | "freeQty");
+                setOfferDiscountPct(0);
+                setOfferFreeQty(0);
+              }}
+            >
+              <Radio value="discount">Discount</Radio>
+              <Radio value="freeQty">Free Quantity</Radio>
+            </RadioGroup>
+
+            {offerType === "discount" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <span style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--cim-fg-base, #15191d)" }}>
+                  Select a value <span style={{ color: "var(--cim-fg-critical, #b91c1c)" }}>*</span>
+                </span>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                  {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((pct) => (
+                    <button
+                      key={pct}
+                      onClick={() => setOfferDiscountPct(pct)}
+                      style={{
+                        minWidth: "48px",
+                        padding: "6px 12px",
+                        borderRadius: "6px",
+                        border: `1.5px solid ${offerDiscountPct === pct ? "var(--cim-fg-accent, #0e7490)" : "var(--cim-border-base, #dadcdd)"}`,
+                        background: offerDiscountPct === pct ? "var(--cim-bg-accent-subtle, #e0f2f8)" : "white",
+                        color: "var(--cim-fg-accent, #0e7490)",
+                        fontSize: "0.875rem",
+                        fontWeight: offerDiscountPct === pct ? 600 : 400,
+                        cursor: "pointer",
+                        transition: "all 0.1s",
+                      }}
+                    >
+                      {pct}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {offerType === "freeQty" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <span style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--cim-fg-base, #15191d)" }}>
+                  Select a value <span style={{ color: "var(--cim-fg-critical, #b91c1c)" }}>*</span>
+                </span>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  {[5, 10, 15].map((pct) => (
+                    <button
+                      key={pct}
+                      onClick={() => setOfferFreeQty(pct)}
+                      style={{
+                        minWidth: "48px",
+                        padding: "6px 12px",
+                        borderRadius: "6px",
+                        border: `1.5px solid ${offerFreeQty === pct ? "var(--cim-fg-accent, #0e7490)" : "var(--cim-border-base, #dadcdd)"}`,
+                        background: offerFreeQty === pct ? "var(--cim-bg-accent-subtle, #e0f2f8)" : "white",
+                        color: "var(--cim-fg-accent, #0e7490)",
+                        fontSize: "0.875rem",
+                        fontWeight: offerFreeQty === pct ? 600 : 400,
+                        cursor: "pointer",
+                        transition: "all 0.1s",
+                      }}
+                    >
+                      {pct}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Item price section */}
 
           <div ref={itemPriceRef} style={{
@@ -1323,8 +1421,14 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
 
               {/* Discount */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "1rem", color: "var(--cim-fg-base, #15191d)" }}>
-                <span>Discount</span>
-                <span style={{ color: "var(--cim-fg-muted, #94979b)" }}>0.00 USD</span>
+                <span>
+                  {offerType === "freeQty" && offerFreeQty > 0
+                    ? `Free quantity (${offerFreeQty}%)`
+                    : `Discount${offerDiscountPct > 0 ? ` (${offerDiscountPct}%)` : ""}`}
+                </span>
+                <span style={{ color: discountAmount > 0 ? "var(--cim-fg-success, #15803d)" : "var(--cim-fg-muted, #94979b)" }}>
+                  {discountAmount > 0 ? `-${discountAmount.toFixed(2)}` : "0.00"} USD
+                </span>
               </div>
 
               {/* Total charges applied — collapsible, only shown when at least one charge applies */}
