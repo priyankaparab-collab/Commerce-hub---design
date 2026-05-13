@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import NextLink from "next/link";
 import {
-  Button, SearchField, Text, IconButton, Link,
+  Button, SearchField, Text, IconButton,
   Card, CardHeader, CardContent,
   Stack, Disclosure, Badge,
 } from "@cimpress-ui/react";
@@ -147,7 +148,7 @@ function AddressRows({ customer }: { customer: Customer }) {
             {!isOrg && (
               <>
                 <div style={{ height: "1px", background: "var(--cim-border-base, #dadcdd)", margin: "0 -16px" }} />
-                <Link href={`/customers/${customer.id}/create-order?country=${encodeURIComponent(addr.country)}`}>Create order</Link>
+                <NextLink href={`/customers/${customer.id}/create-order?country=${encodeURIComponent(addr.country)}`} style={{ color: "var(--cim-fg-accent, #007798)", fontSize: "14px" }}>Create order</NextLink>
               </>
             )}
           </div>
@@ -207,7 +208,7 @@ function ResultsTable({ results }: { results: Customer[] }) {
             {/* Customer row */}
             <div style={customerRowStyle(rowIdx)}>
               <div style={CELL}>
-                <Text as="span" variant="medium"><Link href={`/customers/${c.id}`}>{c.name}</Link></Text>
+                <Text as="span" variant="medium"><NextLink href={`/customers/${c.id}`} style={{ color: "var(--cim-fg-accent, #007798)" }}>{c.name}</NextLink></Text>
               </div>
               <div style={CELL}>
                 <Text as="span" variant="medium">{c.email}</Text>
