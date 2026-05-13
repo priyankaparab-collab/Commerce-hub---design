@@ -1,0 +1,6 @@
+1:"$Sreact.fragment"
+2:I[19862,["/Commerce-hub---design/_next/static/chunks/02ol_r5sbyc9w.js","/Commerce-hub---design/_next/static/chunks/08bwwpfda651z.js","/Commerce-hub---design/_next/static/chunks/0iuvyque2u~ks.js","/Commerce-hub---design/_next/static/chunks/12280-aocw0-0.js","/Commerce-hub---design/_next/static/chunks/13_32bib~v3yb.js"],"OrderDetailsPage"]
+3:I[40421,["/Commerce-hub---design/_next/static/chunks/02ol_r5sbyc9w.js","/Commerce-hub---design/_next/static/chunks/08bwwpfda651z.js","/Commerce-hub---design/_next/static/chunks/0iuvyque2u~ks.js"],"OutletBoundary"]
+4:"$Sreact.suspense"
+0:{"rsc":["$","$1","c",{"children":[["$","$L2",null,{"orderId":"VP_8WZ3DJ32"}],[["$","script","script-0",{"src":"/Commerce-hub---design/_next/static/chunks/12280-aocw0-0.js","async":true}],["$","script","script-1",{"src":"/Commerce-hub---design/_next/static/chunks/13_32bib~v3yb.js","async":true}]],["$","$L3",null,{"children":["$","$4",null,{"name":"Next.MetadataOutlet","children":"$@5"}]}]]}],"isPartial":false,"staleTime":300,"varyParams":null,"buildId":"IEioOOWPAxolS8eeAYvbh"}
+5:null
