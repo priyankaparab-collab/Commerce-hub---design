@@ -546,14 +546,14 @@ export const ItemConfigurationCard = forwardRef<ItemConfigurationCardHandle, Ite
         artworkType: artworkOption === "new" ? "upload" : artworkOption === "customise" ? "url" : "none",
         artworkUrl: "",
         artworkFileName,
-        itemDiscount: 0,
+        itemDiscount: offerType === "discount" ? offerDiscountPct : offerFreeQty,
         unitPrice,
         // lineTotal is the pre-tax subtotal; tax is computed separately downstream
         lineTotal: subtotal,
         accessories: addedAccessories,
       };
       onAddToOrder(item);
-    }, [product, selectedAttributes, quantity, sizeQuantities, artworkOption, artworkFileName, unitPrice, subtotal, addedAccessories, onAddToOrder, initialValues]);
+    }, [product, selectedAttributes, quantity, sizeQuantities, artworkOption, artworkFileName, unitPrice, subtotal, addedAccessories, onAddToOrder, initialValues, offerType, offerDiscountPct, offerFreeQty]);
 
     useImperativeHandle(ref, () => ({ submit: handleSubmit }), [handleSubmit]);
 
