@@ -1,20 +1,33 @@
 import type { Customer } from "./createOrderMockData";
 import { CUSTOMER_DATABASE } from "./createOrderMockData";
 
-const NAME_VARIANT_SEEDS = [
-  { emailSuffix: "@vista.com",       orderCount: 12 },
-  { emailSuffix: "@vistaprint.com",  orderCount: 2  },
-  { emailSuffix: "@example.com",     orderCount: 45 },
-  { emailSuffix: "@gmail.com",       orderCount: 3  },
+const NAME_VARIANT_SEEDS: Array<{
+  emailSuffix: string;
+  type: "org" | "child";
+  addressOrderCounts: number[];
+}> = [
+  { emailSuffix: "@vista.com",      type: "org",   addressOrderCounts: [12, 0] },
+  { emailSuffix: "@vistaprint.com", type: "child", addressOrderCounts: [2, 0]  },
+  { emailSuffix: "@example.com",    type: "child", addressOrderCounts: [45, 0] },
+  { emailSuffix: "@gmail.com",      type: "child", addressOrderCounts: [3, 1]  },
 ];
 
 export function generateNameVariants(base: Customer): Customer[] {
-  const slug = base.name.toLowerCase().replace(/\s+/g, ".");
+  // Strip company suffixes to get the personal name used for both child names and email slugs
+  const personalName = base.name.replace(/\s+(Ltd\.?|Pvt\.?\s*Ltd\.?|Inc\.?|Corp\.?|LLC\.?)$/i, "").trim();
+  const slug = personalName.toLowerCase().replace(/\s+/g, ".");
+
+  // Generate short sequential variant IDs (e.g. base "123456" → "123456-2", "123456-3", …)
   return NAME_VARIANT_SEEDS.map((seed, i) => ({
     ...base,
-    id: `${base.id}-v${i + 1}`,
+    id: `${base.id}-${i + 2}`,
+    name: seed.type === "org" ? base.name : personalName,
     email: `${slug.replace(/\./g, i === 0 ? "" : String(i))}${seed.emailSuffix}`,
-    orderCount: seed.orderCount,
+    type: seed.type,
+    addresses: base.addresses.map((addr, j) => ({
+      ...addr,
+      orderCount: seed.addressOrderCounts[j] ?? 0,
+    })),
   }));
 }
 
@@ -24,8 +37,8 @@ export function findCustomer(customerId: string): Customer | undefined {
   const direct = CUSTOMER_DATABASE.find((c) => c.id === customerId);
   if (direct) return direct;
 
-  // Variant match: strip the -vN suffix and regenerate
-  const variantMatch = customerId.match(/^(.+)-v(\d+)$/);
+  // Variant match: strip the -N suffix and regenerate
+  const variantMatch = customerId.match(/^(.+)-(\d+)$/);
   if (variantMatch) {
     const baseId = variantMatch[1];
     const base = CUSTOMER_DATABASE.find((c) => c.id === baseId);

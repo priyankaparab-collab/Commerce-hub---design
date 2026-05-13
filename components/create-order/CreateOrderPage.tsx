@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button, CopyInline, Callout, Text } from "@cimpress-ui/react";
 import { AppBreadcrumbs } from "@/components/AppBreadcrumbs";
 import { IconArrowLeft } from "@cimpress-ui/react/icons";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { DraftOrder, DraftOrderItem } from "@/lib/types";
 import type { Customer } from "@/lib/createOrderMockData";
 import { ProductSearchPanel } from "./ProductSearchPanel";
@@ -12,6 +12,19 @@ import { OrderSummaryPanel } from "./OrderSummaryPanel";
 import { ShippingDrawer } from "./ShippingDrawer";
 import { AddNewItemView } from "./AddNewItemView";
 import { StoreSelectionModal } from "./StoreSelectionModal";
+
+/** Maps an address country code to the nearest store ID. */
+const COUNTRY_TO_STORE: Record<string, string> = {
+  US: "NA", CA: "NA", MX: "NA",
+  IE: "IE", GB: "IE",
+  IN: "IN",
+  DE: "DE", AT: "DE", CH: "DE", DK: "DE", NL: "DE", SE: "DE", NO: "DE",
+  AU: "AU", NZ: "AU",
+};
+
+function countryToStore(country: string): string {
+  return COUNTRY_TO_STORE[country.toUpperCase()] ?? "NA";
+}
 
 interface CreateOrderPageProps {
   customer: Customer;
@@ -30,15 +43,21 @@ function computeTotals(items: DraftOrderItem[]): Pick<DraftOrder, "subtotal" | "
 
 export function CreateOrderPage({ customer }: CreateOrderPageProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const preselectedCountry = searchParams.get("country") ?? undefined;
 
   const [view, setView] = useState<"cart" | "add-item">("cart");
   const [items, setItems] = useState<DraftOrderItem[]>([]);
   const [editingItem, setEditingItem] = useState<DraftOrderItem | null>(null);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
-  // Store selection — mandatory on entry
-  const [isStoreModalOpen, setIsStoreModalOpen] = useState(true);
-  const [selectedStore, setSelectedStore] = useState<string>("");
+  // If a country was passed from the address card, derive the store automatically.
+  const storeFromAddress = preselectedCountry ? countryToStore(preselectedCountry) : "";
+  const isStoreLocked = Boolean(storeFromAddress);
+
+  // Store selection — skip modal when store is pre-determined from address country
+  const [isStoreModalOpen, setIsStoreModalOpen] = useState(!isStoreLocked);
+  const [selectedStore, setSelectedStore] = useState<string>(storeFromAddress);
 
   // Order-level discount + override
   const [orderDiscount, setOrderDiscount] = useState(0);
@@ -200,12 +219,26 @@ export function CreateOrderPage({ customer }: CreateOrderPageProps) {
                   <div style={{ width: "1px", height: "16px", background: "var(--cim-border-subtle, #eaebeb)", flexShrink: 0 }} />
                   <Text as="span" variant="medium">
                     Store: {selectedStore}
-                    <button
-                      onClick={() => setIsStoreModalOpen(true)}
-                      style={{ marginLeft: "6px", background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "inherit", color: "var(--cim-fg-accent, #007798)", textDecoration: "underline" }}
-                    >
-                      Change
-                    </button>
+                    {isStoreLocked ? (
+                      <span style={{
+                        marginLeft: "6px",
+                        fontSize: "0.75rem",
+                        color: "var(--cim-fg-subtle, #5f6469)",
+                        background: "var(--cim-bg-subtle, #f8f9fa)",
+                        border: "1px solid var(--cim-border-base, #dadcdd)",
+                        borderRadius: "4px",
+                        padding: "1px 6px",
+                      }}>
+                        auto-set from address · {preselectedCountry}
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => setIsStoreModalOpen(true)}
+                        style={{ marginLeft: "6px", background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "inherit", color: "var(--cim-fg-accent, #007798)", textDecoration: "underline" }}
+                      >
+                        Change
+                      </button>
+                    )}
                   </Text>
                 </>
               )}

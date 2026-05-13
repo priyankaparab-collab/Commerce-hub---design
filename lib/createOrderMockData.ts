@@ -15,118 +15,170 @@ function jacketDataUri(hexColor: string): string {
   return JACKET_IMAGES[hexColor] ?? "https://images.unsplash.com/photo-1548126032-079a0fb0099d?w=600&h=600&fit=crop";
 }
 
-// ─── Customer Database (moved from SearchView.tsx for server-component access) ─
+// ─── Customer Database ────────────────────────────────────────────────────────
+export interface CustomerAddress {
+  id: string;
+  address: string;
+  city: string;
+  state: string;
+  zipcode: string;
+  country: string;
+  orderCount: number;
+}
+
 export interface Customer {
   id: string;
   name: string;
   email: string;
   phone: string;
   store: string;
-  orderCount: number;
+  type: "org" | "child";
   orderIds: string[];
   shopperId: string;
+  addresses: CustomerAddress[];
+}
+
+/** Sum of orders across all addresses for a customer. */
+export function getTotalOrders(c: Customer): number {
+  return c.addresses.reduce((s, a) => s + a.orderCount, 0);
 }
 
 export const CUSTOMER_DATABASE: Customer[] = [
   {
-    id: "CUST-001-melekzribi",
-    name: "Melek Zribi",
+    id: "123456",
+    name: "Melek Zribi Ltd",
     email: "mzribi@vista.com",
     phone: "+1-555-0101",
     store: "NA",
-    orderCount: 3,
+    type: "org",
     orderIds: ["VP_LPHSW5Q", "VP_KJH23NM", "VP_QAZ11WS"],
     shopperId: "134266324230942309804284080248",
+    addresses: [
+      { id: "addr-001-a", address: "275 Wyman Street", city: "Waltham", state: "MA", zipcode: "02451", country: "US", orderCount: 3 },
+      { id: "addr-001-b", address: "400 Trade Center Dr", city: "Woburn", state: "MA", zipcode: "01801", country: "US", orderCount: 0 },
+    ],
   },
   {
-    id: "CUST-002-jonathanblake",
+    id: "234567",
     name: "Jonathan Blake",
     email: "j.blake@vistaprint.com",
     phone: "+1-555-0102",
     store: "NA",
-    orderCount: 2,
+    type: "child",
     orderIds: ["VP_QRX89PT", "VP_MNL45KJ"],
     shopperId: "234566324230942309804284080249",
+    addresses: [
+      { id: "addr-002-a", address: "100 Elm Street", city: "Somerville", state: "MA", zipcode: "02143", country: "US", orderCount: 2 },
+    ],
   },
   {
-    id: "CUST-003-sarahchen",
+    id: "345678",
     name: "Sarah Chen",
     email: "s.chen@cimpress.com",
     phone: "+44-555-0201",
     store: "IE",
-    orderCount: 2,
+    type: "child",
     orderIds: ["VP_WXY12AB", "VP_ZPQ67RS"],
     shopperId: "334566324230942309804284080250",
+    addresses: [
+      { id: "addr-003-a", address: "One Harbourmaster Place", city: "Dublin", state: "Leinster", zipcode: "D01 F6F0", country: "IE", orderCount: 2 },
+      { id: "addr-003-b", address: "4 Lapps Quay", city: "Cork", state: "Munster", zipcode: "T12 X44J", country: "IE", orderCount: 0 },
+    ],
   },
   {
-    id: "CUST-004-arjunsharma",
+    id: "456789",
     name: "Arjun Sharma",
     email: "arjun.sharma@gmail.com",
     phone: "+91-9876543210",
     store: "IN",
-    orderCount: 2,
+    type: "org",
     orderIds: ["VP_BCD34EF", "VP_GHI78JK"],
     shopperId: "434566324230942309804284080251",
+    addresses: [
+      { id: "addr-004-a", address: "42 MG Road", city: "Bengaluru", state: "Karnataka", zipcode: "560001", country: "IN", orderCount: 1 },
+      { id: "addr-004-b", address: "15 BKC, Bandra", city: "Mumbai", state: "Maharashtra", zipcode: "400051", country: "IN", orderCount: 1 },
+    ],
   },
   {
-    id: "CUST-005-fatimahassan",
+    id: "550956",
     name: "Fatima Al-Hassan",
     email: "f.hassan@outlook.com",
     phone: "+971-555-0301",
     store: "DE",
-    orderCount: 1,
+    type: "child",
     orderIds: ["VP_LMN90OP"],
     shopperId: "534566324230942309804284080252",
+    addresses: [
+      { id: "addr-005-a", address: "Sheikh Zayed Road 12", city: "Dubai", state: "Dubai", zipcode: "00000", country: "AE", orderCount: 1 },
+    ],
   },
   {
-    id: "CUST-006-davidpark",
+    id: "667823",
     name: "David Park",
     email: "dpark@yahoo.com",
     phone: "+82-555-0401",
     store: "AU",
-    orderCount: 3,
+    type: "org",
     orderIds: ["VP_QRS12TU", "VP_VWX34YZ", "VP_ABC56DE"],
     shopperId: "634566324230942309804284080253",
+    addresses: [
+      { id: "addr-006-a", address: "88 Collins Street", city: "Melbourne", state: "VIC", zipcode: "3000", country: "AU", orderCount: 2 },
+      { id: "addr-006-b", address: "48 Hunter Street, Level 5", city: "Sydney", state: "NSW", zipcode: "2000", country: "AU", orderCount: 1 },
+    ],
   },
   {
-    id: "CUST-007-emmawilson",
+    id: "778234",
     name: "Emma Wilson",
     email: "emma.w@example.com",
     phone: "+1-555-0501",
     store: "NA",
-    orderCount: 1,
+    type: "child",
     orderIds: ["VP_FGH78IJ"],
     shopperId: "734566324230942309804284080254",
+    addresses: [
+      { id: "addr-007-a", address: "500 W Madison St", city: "Chicago", state: "IL", zipcode: "60661", country: "US", orderCount: 1 },
+    ],
   },
   {
-    id: "CUST-008-carlosmendoza",
+    id: "889345",
     name: "Carlos Mendoza",
     email: "cmendoza@empresa.mx",
     phone: "+52-555-0601",
     store: "IE",
-    orderCount: 2,
+    type: "org",
     orderIds: ["VP_KLM90NO", "VP_PQR12ST"],
     shopperId: "834566324230942309804284080255",
+    addresses: [
+      { id: "addr-008-a", address: "Av. Insurgentes Sur 1234", city: "Mexico City", state: "CDMX", zipcode: "03100", country: "MX", orderCount: 2 },
+      { id: "addr-008-b", address: "Av. López Mateos 456", city: "Guadalajara", state: "Jalisco", zipcode: "44600", country: "MX", orderCount: 0 },
+    ],
   },
   {
-    id: "CUST-009-priyapatel",
+    id: "990456",
     name: "Priya Patel",
     email: "priya.patel@techco.in",
     phone: "+91-8765432109",
     store: "IN",
-    orderCount: 1,
+    type: "child",
     orderIds: ["VP_UVW34XY"],
     shopperId: "934566324230942309804284080256",
+    addresses: [
+      { id: "addr-009-a", address: "Plot 17, Cyber City", city: "Hyderabad", state: "Telangana", zipcode: "500081", country: "IN", orderCount: 1 },
+    ],
   },
   {
-    id: "CUST-010-larsnielsen",
+    id: "101567",
     name: "Lars Nielsen",
     email: "l.nielsen@nordic.dk",
     phone: "+45-555-0701",
     store: "DE",
-    orderCount: 2,
+    type: "child",
     orderIds: ["VP_ZAB56CD", "VP_EFG78HI"],
     shopperId: "104566324230942309804284080257",
+    addresses: [
+      { id: "addr-010-a", address: "Vesterbrogade 149", city: "Copenhagen", state: "Capital Region", zipcode: "1620", country: "DK", orderCount: 1 },
+      { id: "addr-010-b", address: "Skolegade 1", city: "Aarhus", state: "Midtjylland", zipcode: "8000", country: "DK", orderCount: 1 },
+    ],
   },
 ];
 
