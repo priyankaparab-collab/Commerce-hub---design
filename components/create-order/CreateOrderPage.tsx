@@ -5,7 +5,7 @@ import { Button, CopyInline, Callout, Text } from "@cimpress-ui/react";
 import { AppBreadcrumbs } from "@/components/AppBreadcrumbs";
 import { IconArrowLeft } from "@cimpress-ui/react/icons";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { DraftOrder, DraftOrderItem } from "@/lib/types";
+import type { DraftOrder, DraftOrderItem, SavedAddress } from "@/lib/types";
 import type { Customer } from "@/lib/createOrderMockData";
 import { ProductSearchPanel } from "./ProductSearchPanel";
 import { OrderSummaryPanel } from "./OrderSummaryPanel";
@@ -45,6 +45,17 @@ export function CreateOrderPage({ customer }: CreateOrderPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preselectedCountry = searchParams.get("country") ?? undefined;
+  const preselectedAddressId = searchParams.get("addressId") ?? undefined;
+
+  // Convert customer's addresses to SavedAddress format, marking the selected one as default
+  const customerSavedAddresses: SavedAddress[] = customer.addresses.map((addr, idx) => ({
+    id: addr.id,
+    label: "Saved",
+    name: customer.name,
+    lines: [addr.address, `${addr.city}, ${addr.state}`, `${addr.zipcode}, ${addr.country}`],
+    phone: customer.phone,
+    isDefault: preselectedAddressId ? addr.id === preselectedAddressId : idx === 0,
+  }));
 
   const [view, setView] = useState<"cart" | "add-item">("cart");
   const [items, setItems] = useState<DraftOrderItem[]>([]);
@@ -284,6 +295,7 @@ export function CreateOrderPage({ customer }: CreateOrderPageProps) {
         isOpen={isCheckoutOpen}
         items={items}
         draftOrder={draftOrder}
+        initialAddresses={customerSavedAddresses}
         onClose={() => setIsCheckoutOpen(false)}
         onReviewToCheckout={() => setIsCheckoutOpen(false)}
         onShippingCostChange={setShippingEstimate}

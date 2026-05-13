@@ -148,7 +148,7 @@ function AddressRows({ customer }: { customer: Customer }) {
             {!isOrg && (
               <>
                 <div style={{ height: "1px", background: "var(--cim-border-base, #dadcdd)", margin: "0 -16px" }} />
-                <NextLink href={`/customers/${customer.id}/create-order?country=${encodeURIComponent(addr.country)}`} style={{ color: "var(--cim-fg-accent, #007798)", fontSize: "14px" }}>Create order</NextLink>
+                <NextLink href={`/customers/${customer.id}/create-order?country=${encodeURIComponent(addr.country)}&addressId=${encodeURIComponent(addr.id)}`} style={{ color: "var(--cim-fg-accent, #007798)", fontSize: "14px" }}>Create order</NextLink>
               </>
             )}
           </div>
