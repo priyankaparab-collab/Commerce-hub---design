@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { CreateOrderPage } from "@/components/create-order/CreateOrderPage";
 import { getAllCustomerParams, findCustomer } from "@/lib/customerUtils";
@@ -18,5 +19,9 @@ export default async function Page({ params }: PageProps) {
     notFound();
   }
 
-  return <CreateOrderPage customer={customer} />;
+  return (
+    <Suspense>
+      <CreateOrderPage customer={customer} />
+    </Suspense>
+  );
 }
